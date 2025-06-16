@@ -22,6 +22,8 @@ from elastica._linalg import _batch_norm
 from wrist_kinematics import AsymmetricWristKinematics
 from surrogate_model import MySurrogateModel
 from optimization import MyOptimization
+from data_analyzer import MyDataAnalyzer
+from planar_rod_model import KirchhoffBeamSolver
 #from Animation.BeamAnimator import BeamAnimator
 
 class ElasticaForceEstimation:
@@ -73,10 +75,8 @@ class ElasticaForceEstimation:
         # Create rod history
         for i in range(self.n_rods):
             self.rod_history[i] = ea.defaultdict(list)
-        # Options
-        self.PLOT_FIGURE = True
 
-    def run(self):
+    def run(self, plot_figure=False):
         self.sim = SystemSimulator() # Create new simulation each time
         for i in range(self.n_rods):
             rod = self.createRod(i)
@@ -88,7 +88,7 @@ class ElasticaForceEstimation:
         self.sim.finalize()
         # Run Simulation
         integrate(self.timestepper, self.sim, self.final_time, self.total_steps)
-        if self.PLOT_FIGURE:
+        if plot_figure:
             self.plotFig()
             
     def createRod(self, i):
@@ -204,32 +204,60 @@ class ElasticaForceEstimation:
                 z[i+1] = history["position"][time_index][2][-1]
         return x, y, z
     
-    def getProximalValues(self, F, s, tendon_displacement=None, wrist_model=None, surrogate_model=None):
-        if tendon_displacement != None and wrist_model != None:
-            x_new, y_new = wrist_model.shape(tendon_displacement)
-            self.__init__(x=x_new, y=y_new, z=self.z, n_rods=self.n_rods, radii=self.radii, youngs_modulus=self.youngs_modulus, poisson_ratio=self.poisson_ratio)  # reinitializes the object
+    def getProximalValues(self, F, s, tendon_displacement=None, wrist_model=None, new_radii=None, plot_figure=True):
+        if tendon_displacement is not None or new_radii is not None:
+            if tendon_displacement is not None:
+                if wrist_model is not None:
+                    x_new, y_new = wrist_model.shape(tendon_displacement)
+                else:
+                    raise ValueError("Error: wrist model required!")
+            else:
+                x_new, y_new = self.x, self.y
+            r_new = new_radii if new_radii is not None else self.radii
+            # Reinitializes the object
+            self.__init__(x=x_new, y=y_new, z=self.z, n_rods=self.n_rods, radii=r_new, youngs_modulus=self.youngs_modulus, poisson_ratio=self.poisson_ratio)  
+
         self.F = F
         self.s = s
-        if surrogate_model == None:
-            # Run simulation
-            self.run()
-            # Obtain axial force
-            f0 = self.rods[0].internal_forces[:, 0]   # 3D force vector at node 0
-            t0 = self.rods[0].tangents[:, 0]          # 3D unit tangent vector at start
-            axial_force = np.dot(f0, t0) # Scalar: component of force along the tangent 
-            # Obtain torques
-            torque_global = self.rods[0].internal_torques[:, 0]  # Get global torque vector at node 0 shape: (3,)
-            My = torque_global[0] # Project global torque vector onto local y and z axes
-            Mz = torque_global[1] 
-            bending_moment_mag = np.sqrt(My**2 + Mz**2) # Compute the bending moment magnitude (orthogonal to rod axis)
-        elif surrogate_model != None:
-            x = np.array([[F, s, tendon_displacement]])
-            axial_force, bending_moment_mag = surrogate_model.predict(x)[0]
+        # Run simulation
+        self.run(plot_figure=plot_figure)
+        # Obtain axial force
+        f0 = self.rods[0].internal_forces[:, 0]   # 3D force vector at node 0
+        t0 = self.rods[0].tangents[:, 0]          # 3D unit tangent vector at start
+        axial_force = np.dot(f0, t0) # Scalar: component of force along the tangent 
+        # Obtain torques
+        torque_global = self.rods[0].internal_torques[:, 0]  # Get global torque vector at node 0 shape: (3,)
+        My = torque_global[0] # Project global torque vector onto local y and z axes
+        Mz = torque_global[1] 
+        bending_moment_mag = np.sqrt(My**2 + Mz**2) # Compute the bending moment magnitude (orthogonal to rod axis)
+
         return axial_force, bending_moment_mag
+        
     
-    def get_distal_values(self, axial_force, bending_moment_mag, tendon_displacement, surrogate_model, optimizer):
-        x0 = np.array([0.3, self.total_length/4])
-        optimizer.solve(axial_force, bending_moment_mag, tendon_displacement, x0, self, surrogate_model)
+    
+    def get_distal_values(self, axial_force, bending_moment_mag, tendon_displacement, surrogate_model=None,
+                          axial_noise=0.0, moment_noise=0.0, tendon_noise=0.0):
+        if surrogate_model is not None:
+            # Add noise to inputs
+            axial_force_noisy = axial_force + np.random.normal(0, axial_noise) # adds Gaussian noise with mean 0 and standard deviation axial noise
+            moment_noisy = bending_moment_mag + np.random.normal(0, moment_noise) 
+            tendon_disp_noisy = tendon_displacement + np.random.normal(0, tendon_noise)
+            
+            # Calculate distal values using surrogate model
+            # by default assume radius is not an input in the model (model pre-trained on a specific radius)
+            x = np.array([[axial_force_noisy, moment_noisy, tendon_disp_noisy]])
+            try:
+                F, s = surrogate_model.predict(x)[0]
+            except ValueError as e:
+                if "X" in str(e) and "features" in str(e):
+                    # Append self.radii if the input shape is incorrect (model requires a radius input)
+                    x = np.array([[axial_force_noisy, moment_noisy, tendon_disp_noisy, self.radii]])
+                    F, s = surrogate_model.predict(x)[0]
+                else:
+                    raise  # Re-raise if it's a different kind of ValueError
+        else:
+            raise ValueError("Error: model required!")
+        return F, s 
 
     def plotFig(self):
         x_initial, y_initial, z_initial = self.getPosValues(0)
@@ -340,16 +368,22 @@ class MyCallBack(CallBackBaseClass):
 if __name__ == "__main__":
     wrist = AsymmetricWristKinematics()
     sur = MySurrogateModel("KRG")
-    ela = ElasticaForceEstimation(x=np.linspace(0,0.2,61), y=np.zeros(61), z=np.zeros(61), n_rods=20, radii=np.full(20, 1.5e-3), youngs_modulus=2.12e9, poisson_ratio=0.35)
-    opt = MyOptimization()
-    #sur.get_training_data(F_limits=np.array([0.1, 0.4]), s_limits=np.array([0.05, 0.2]), tendon_displacement_limits=np.array([0, 0.005]), n_training_samples=300, elastica_model=ela, wrist_model=wrist)
+    
+    ela = ElasticaForceEstimation(x=np.linspace(0,0.2,61), y=np.zeros(61), z=np.zeros(61), n_rods=20, radii=np.full(61, 1.5e-3), youngs_modulus=2.12e9, poisson_ratio=0.35)
+    #opt = MyOptimization()
+    #data = MyDataAnalyzer()
+    #sur.get_training_data(F_limits=np.array([0.1, 0.4]), s_limits=np.array([0.075, 0.2]), radii_limits=np.array([0.75, 3]), tendon_displacement_limits=np.array([0, 0.003]), n_training_samples=2300, elastica_model=ela, wrist_model=wrist)
     #x, y = wrist.shape(0.0027)
-    #fx, mb = ela.getProximalValues(F=0.38, s=0.16, tendon_displacement=0.0027, wrist_model=wrist)
     #print(fx)
     #print(mb)
     #print(dl)
-    sur.train_model()
-    #ela.get_distal_values(fx, mb, 0.0027, sur, opt)
-
+    #sur.train_model()
+    #fx, mb = ela.getProximalValues(F=0.1138, s=0.1618, tendon_displacement=0, wrist_model=wrist, plot_figure=True)
+    #y_test = np.load("distal_to_proximal_training_data/y_test.npy")
+    #x_test = np.load("distal_to_proximal_training_data/x_test.npy")
+    #data.validate(x_test=x_test, y_test=y_test, x_noise=np.array([0.0025, 0.0005, 0]), n_trials=10, elastica=ela, surrogate_model=sur)
+    #F, s = ela.get_distal_values(axial_force=fx, bending_moment_mag=mb, tendon_displacement=dl, surrogate_model=sur)
+    #print(F)
+    #print(s)
    
 

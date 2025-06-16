@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 
 class AsymmetricWristKinematics:
     def __init__(self,
+                 n_points=61,
                  length=0.2,
                  ri=0.020,
                  ro=0.040,
@@ -14,6 +15,7 @@ class AsymmetricWristKinematics:
         ro: outer tube radius [m]
         h: cut height [m]
         """
+        self.n_points = n_points
         self.length = length
         self.ri = ri
         self.ro = ro
@@ -30,7 +32,7 @@ class AsymmetricWristKinematics:
         den = self.h * (self.ri + self.y_bar) - delta_l * self.y_bar
         return num / den
 
-    def shape(self, delta_l, n_points=61):
+    def shape(self, delta_l):
         """
         Return (x, y) arrays of the wrist body for given Δl [m].
         Approximates a constant-curvature arc of length self.length.
@@ -38,10 +40,10 @@ class AsymmetricWristKinematics:
         kappa = self.curvature(delta_l)
         s = self.length
         if abs(kappa) < 1e-8:
-            x = np.linspace(0, s, n_points)
+            x = np.linspace(0, s, self.n_points)
             y = np.zeros_like(x)
             return x, y
-        ss = np.linspace(0, s, n_points)
+        ss = np.linspace(0, s, self.n_points)
         x = (1/kappa) * np.sin(kappa * ss)
         y = (1/kappa) * (1 - np.cos(kappa * ss))
         return x, y
