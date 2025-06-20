@@ -2,28 +2,34 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import griddata
 import matplotlib.colors as colors
+import matlab.engine
+eng = matlab.engine.start_matlab()
 
 class MyDataAnalyzer:
     def __init__(self):
         pass
-    def validate(self, x_test, y_test, x_noise = np.zeros(3), n_trials = 10, elastica=None, surrogate_model=None, plot_results=True):
-        # Validate surrogate model
-        delta_F_array = np.zeros((len(x_test), n_trials))
-        delta_s_array = np.zeros((len(x_test), n_trials))
-        for i, (x, y) in enumerate(zip(x_test, y_test)):
-            axial_force = x[0]
-            bending_moment_mag = x[1]
-            tendon_displacement = x[2]
-            F = y[0]
-            s = y[1]
-            for j in range(n_trials):
-                F_hat, s_hat = elastica.get_distal_values(
-                    axial_force, bending_moment_mag, tendon_displacement, surrogate_model,
-                    axial_noise=x_noise[0], moment_noise=x_noise[1], tendon_noise=x_noise[2]
-                )
-                delta_F_array[i, j] = (F_hat - F)
-                delta_s_array[i, j] = (s_hat - s)
-    
+    def compute_proximal_data(self, F_limits=np.array([0.1, 0.4]), s_limits=np.array([0.075, 0.2]), tau_limits=np.array([0, 1.5]), matlab=eng):
+        F_array = np.random.uniform(F_limits[0], F_limits[1], size=100)
+        s_array = np.random.uniform(s_limits[0], s_limits[1], size=100)
+        Tau_array = np.random.uniform(tau_limits[0], tau_limits[1], size=100)
+        distal_values = np.stack((F_array, s_array, Tau_array), axis=1)
+        proximal_values = matlab.get_proximal_values(distal_values)
+        np.save('proximal_values.npy', proximal_values)
+        np.save('distal_values.npy', distal_values)
+    def validate_inverse_model(self, proximal_values, target_distal_values, mean_error=np.zeros(3), std_error=np.zeros(3), n_trials=1, plot_results=True, matlab=eng):
+        # Validate inverse model using knowm data
+        delta_F_array = np.zeros((len(target_distal_values), n_trials))
+        delta_s_array = np.zeros((len(target_distal_values), n_trials))
+        for j in range(n_trials):
+            error = np.random.normal(loc=mean_error, scale=std_error, size=tuple([proximal_values.shape[0], proximal_values.shape[1]-1]))
+            proximal_values[:, :3] += error
+            distal_values = matlab.get_distal_values(proximal_values)
+            F_hats = np.array(distal_values)[:,0]
+            s_hats = np.array(distal_values)[:,1]
+            F_targets = target_distal_values[:,0]
+            s_targets = target_distal_values[:,1]
+            delta_F_array[:, j] = (F_hats - F_targets)
+            delta_s_array[:, j] = (s_hats - s_targets)
 
         # Mean and standard deviation per point across trials
         delta_F_mean = np.mean(delta_F_array, axis=1)
@@ -44,14 +50,14 @@ class MyDataAnalyzer:
         # Print results
         print("Validaition Results:\n")
         print("Overall Results:\n")
-        print(f"Mean ΔF: {delta_F_mean_overall:.4f}")
-        print(f"Standard Deviation ΔF: {delta_F_stdev_overall:.4f}")
-        print(f"Mean Δs: {delta_s_mean_overall:.4f}")
-        print(f"Standard Deviation Δs: {delta_s_stdev_overall:.4f}")
+        print(f"Mean ΔF: {delta_F_mean_overall:.6f}")
+        print(f"Standard Deviation ΔF: {delta_F_stdev_overall:.6f}")
+        print(f"Mean Δs: {delta_s_mean_overall:.6f}")
+        print(f"Standard Deviation Δs: {delta_s_stdev_overall:.6f}")
         # Create heatmaps
         if plot_results:
-            F_array = y_test[:, 0]
-            s_array = y_test[:, 1]
+            F_array = target_distal_values[:, 0]
+            s_array = target_distal_values[:, 1]
             self.plot_heatmap(x_array=s_array, y_array=F_array, var1_mean=delta_F_mean, var1_stdev=delta_F_stdev,
                               var2_mean=delta_s_mean, var2_stdev=delta_s_stdev, var1_title="ΔF", var2_title="Δs",
                               x_label="s (m)", y_label="F (N)")
@@ -71,9 +77,17 @@ class MyDataAnalyzer:
         mean2_grid = griddata((y_array, x_array), var2_mean, (y_mesh, x_mesh), method='cubic')
         std2_grid  = griddata((y_array, x_array), var2_stdev,  (y_mesh, x_mesh), method='cubic')
 
-        # Create color normalizers centered at 0
-        norm_mean1 = colors.TwoSlopeNorm(vmin=np.nanmin(mean1_grid), vcenter=0.0, vmax=np.nanmax(mean1_grid))
-        norm_mean2 = colors.TwoSlopeNorm(vmin=np.nanmin(mean2_grid), vcenter=0.0, vmax=np.nanmax(mean2_grid))
+        try:
+            # Try centering at 0 first
+            norm_mean1 = colors.TwoSlopeNorm(vmin=np.nanmin(mean1_grid), vcenter=0.0, vmax=np.nanmax(mean1_grid))
+            norm_mean2 = colors.TwoSlopeNorm(vmin=np.nanmin(mean2_grid), vcenter=0.0, vmax=np.nanmax(mean2_grid))
+
+        except ValueError:
+            # If that fails, center at the mean
+            vcenter_value = np.nanmean(mean1_grid)
+            norm_mean1 = colors.TwoSlopeNorm(vmin=np.nanmin(mean1_grid), vcenter=vcenter_value, vmax=np.nanmax(mean1_grid))
+            vcenter_value = np.nanmean(mean2_grid)
+            norm_mean2 = colors.TwoSlopeNorm(vmin=np.nanmin(mean2_grid), vcenter=vcenter_value, vmax=np.nanmax(mean2_grid))
 
         # Create 2x2 subplots
         fig, axs = plt.subplots(2, 2, figsize=(12, 10))
@@ -108,3 +122,13 @@ class MyDataAnalyzer:
 
         plt.tight_layout()
         plt.show()
+
+
+dataAnalyzer = MyDataAnalyzer()
+#dataAnalyzer.compute_proximal_data()
+proximal = np.load('proximal_values.npy')
+proximal = np.array(proximal[:50])
+distal = np.load('distal_values.npy')
+distal = np.array(distal[:50])
+#error = np.array([0.01, 0.01, 0.01])
+dataAnalyzer.validate_inverse_model(proximal, distal)
