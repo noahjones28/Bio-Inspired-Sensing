@@ -3,16 +3,14 @@ function proximal_value = get_proximal_value(distal_value)
     load("my_robot.mat")
     F = distal_value(1);
     s = distal_value(2);
-    tau = -1*abs(distal_value(3)); % Negative because pulling tendon
-    % Change Force Magnitude
-    S1.Fp_vec = {@(t)[0,0,0,0,F,0]'};
-    % Change Force Position
-    s_frac = s/S1.VLinks.L; % convert s to fraction of total length
-    [~, quadpoints] = S1.CVRods{1}.Xs; % Get list of current quadpoints
-    [~, idx] = min(abs(quadpoints - s_frac)); % round s_frac to nearest quadpoint
-    s_rounded = quadpoints(idx);
-    S1.Fp_loc = {[1 1 s_rounded]}; % update location
-    S1.Fp_sig = PointWrenchPoints(S1); % update significant point
+    sigma = distal_value(3);
+    tau = -1*abs(distal_value(4)); % Negative because pulling tendon
+    % Change radius
+    %S1.VLinks.r = {[@(X1)X1.*(-1.0./1.0e+3)+1.5e-3]};
+    %S1.CVRods{1}(end).UpdateAll;
+    %S1 = S1.Update();
+    % Apply Force distribution
+    S1 = applyGaussianForce(S1, F, s, sigma, 200, false);
     % Initial Guess
     x0 = zeros(14,1);
     % initial joint values

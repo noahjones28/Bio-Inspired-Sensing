@@ -2,12 +2,13 @@ function distal_values = get_distal_values(proximal_values, num_distal)
     % Create a parallel pool if one isn't already open
     if isempty(gcp('nocreate'))
         localCluster = parcluster('Noah12');
+        delete(localCluster.Jobs)
         parpool(localCluster)
     end
 
     % Defualt argument
     if nargin < 2
-        num_distal = 3; % (3 becuase F,s,tau)
+        num_distal = 4; % (3 becuase F,s,sigma,tau)
     end
     
     % Initialize futures array
@@ -26,7 +27,7 @@ function distal_values = get_distal_values(proximal_values, num_distal)
     % Fetch outputs for all futures
     for i = 1:length(futures)
         try
-            result = fetchOutputs(futures(i));  % This is 1x3
+            result = fetchOutputs(futures(i));  % This is 1x4
             distal_values(i, :) = result;  % <-- Store as row i
         catch ME
             fprintf('Error processing row %d: %s\n', i, ME.message);

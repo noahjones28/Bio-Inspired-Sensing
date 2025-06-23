@@ -2,6 +2,7 @@ function proximal_values = get_proximal_values(distal_values, num_proximal)
     % Create a parallel pool if one isn't already open
     if isempty(gcp('nocreate'))
         localCluster = parcluster('Noah12');
+        delete(localCluster.Jobs)
         parpool(localCluster)
     end
     
