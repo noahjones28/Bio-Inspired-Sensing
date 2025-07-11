@@ -151,9 +151,9 @@ function distal_value = get_distal_value(proximal_value_target)
 
             % Check if best value unchanged for 30 iterations
             if length(best_values) >= 30
-                if best_values(end) == best_values(end-29)
+                if best_values(end) == best_values(end-49)
                     stop = true;
-                    fprintf('Stopping: no improvement for 30 iterations\n');
+                    fprintf('Stopping: no improvement for 50 iterations\n');
                 end
             end
 

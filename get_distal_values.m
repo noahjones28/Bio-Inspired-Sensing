@@ -8,7 +8,7 @@ function distal_values = get_distal_values(proximal_values, num_distal)
 
     % Defualt argument
     if nargin < 2
-        num_distal = 4; % (3 becuase F,s,sigma,tau)
+        num_distal = 4; % (4 becuase F,s,sigma,tau)
     end
     
     % Initialize futures array
@@ -25,10 +25,12 @@ function distal_values = get_distal_values(proximal_values, num_distal)
     distal_values = zeros(num_samples, num_distal);
     
     % Fetch outputs for all futures
+    fprintf('Processing %d samples...\n', num_samples);
     for i = 1:length(futures)
         try
-            result = fetchOutputs(futures(i));  % This is 1x4
-            distal_values(i, :) = result;  % <-- Store as row i
+            result = fetchOutputs(futures(i)); % This is 1x4
+            distal_values(i, :) = result; % <-- Store as row i
+            fprintf('Completed %d/%d\n', i, num_samples);
         catch ME
             fprintf('Error processing row %d: %s\n', i, ME.message);
             fprintf('Input values were: %s\n', mat2str(proximal_values(i, :)));

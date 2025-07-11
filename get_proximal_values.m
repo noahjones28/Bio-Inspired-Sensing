@@ -8,7 +8,7 @@ function proximal_values = get_proximal_values(distal_values, num_proximal)
     
     % Defualt argument
     if nargin < 2
-        num_proximal = 4; % (4 becuase Mz,Fx,Fy,tau)
+        num_proximal = 7; % (7 becuase Mx,My,Mz,Fx,Fy,Fz,tau)
     end
     
     % Initialize futures array
@@ -21,7 +21,7 @@ function proximal_values = get_proximal_values(distal_values, num_proximal)
         futures(index) = parfeval(@get_proximal_value, 1, distal_value);
     end
     
-    % Initialize results as 100x4 matrix
+    % Initialize results as matrix
     proximal_values = zeros(num_samples, num_proximal);
     
     % Fetch outputs for all futures
