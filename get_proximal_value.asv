@@ -5,8 +5,14 @@ function proximal_value = get_proximal_value(distal_values)
     % Extract tau (always the last element)
     tau = -1*abs(distal_values(end)); % Negative because pulling tendon
     
+    % Change radius (commented out in original)
+    %S1.VLinks.r = {[@(X1)X1.*(-1.0./1.0e+3)+1.5e-3]};
+    S1.VLinks.E = 2.1e9; 
+    S1.CVRods{1}(end).UpdateAll;
+    S1 = S1.Update();
+    
     % Apply multiple Gaussian forces
-    S1 = apply_gaussian_force(S1, distal_values, 200, false);
+    S1 = apply_gaussian_force(S1, force_matrix, 200, false);
     
     % Initial Guess
     x0 = zeros(18,1);
