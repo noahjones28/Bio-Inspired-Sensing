@@ -95,7 +95,7 @@ function S1 = apply_gaussian_force(S1, varargin)
             vec = combined_force_vectors(:,i)';   
             
             % Plot the vector using quiver3
-            force_scaler = 0.2;
+            force_scaler = 0.5;
             quiver3(origin(1)-force_scaler*vec(1), origin(2)-force_scaler*vec(2), ...
                 origin(3)-force_scaler*vec(3),vec(1), vec(2), vec(3),...
                 force_scaler, 'm-','MaxHeadSize',1.0,'LineWidth',1);

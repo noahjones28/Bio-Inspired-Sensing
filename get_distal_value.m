@@ -1,12 +1,12 @@
 function distal_value = get_distal_value(proximal_value_target, varargin)
     close all;  
     % Properties
-    weight_vector = [1, 1, 1, 1, 1, 1]; % Set weights for [Fx,Fy,Fz,Tx,Ty,Tz]
+    weight_vector = [1, 1, 1, 1, 1, 1]; % Set weights for [Tx,Ty,Tz,Fx,Fy,Fz]
     lb_single = [0.05, 0.075, 0, 0]; % Lower bounds for [F,s,sigma,el]
-    ub_single = [1, 0.2, 0.05, 2*pi]; % Upper bounds for [F,s,sigma,el]
+    ub_single = [1, 0.2, 0.02, 2*pi]; % Upper bounds for [F,s,sigma,el]
     az_default = pi/2; % Default azimuth angle
     num_columns = numel(lb_single); % num of distal-end deisgn variables [F, s, sigma, el] 
-    N_limit = 2; % Limit on how many loads to check for
+    N_limit = 1; % Limit on how many loads to check for
     plot_progress = true; % enable or disable the live plot
     
     % Split off tau
@@ -23,7 +23,7 @@ function distal_value = get_distal_value(proximal_value_target, varargin)
         plot_handles = gobjects(1, N_limit); % store a line handle per N
     end
     
-    best_fval = Inf; best_x = [];
+    f_best = Inf; x_best = [];
     for N = 1:N_limit
         fprintf('\n=== Optimizing with N = %d forces ===\n', N);
         % Initialize plotting variables
@@ -31,104 +31,81 @@ function distal_value = get_distal_value(proximal_value_target, varargin)
         best_values = [];
         iterations = [];
         
-        % Set up bounds for N forces
-        lb = repmat(lb_single, 1, N);
-        ub = repmat(ub_single, 1, N);
+        lb = repmat(lb_single, 1, N);     % column
+        ub = repmat(ub_single, 1, N);     % column
+        jitter_frac = 1e-2;
+        x0 = (lb + ub)/2 + jitter_frac*(ub - lb).*(2*rand(1, numel(lb)) - 1);
         
-        % Define objective function for current N
-        objfun = @(x) objective_func(x);
+        % residual vector
+        resfun = @(x) residual_vec(x, N, num_columns, az_default, tau, proximal_value_target, weight_vector);
+        % Objective function
+        objfun = @(x) sum(residual_vec(x, N, num_columns, az_default, tau, proximal_value_target, weight_vector).^2);
 
         % SQP Optimization 
         options_fmincon = optimoptions('fmincon', ...
-            'Algorithm', 'sqp', ... % Often more robust than interior-point
+        'Algorithm', 'interior-point', ... % Often more robust than interior-point
             'Display', 'iter', ...
-            'MaxFunctionEvaluations', 2400, ...
+            'MaxFunctionEvaluations', 3000, ...
             'OptimalityTolerance', 1e-8, ... % Less strict
-            'StepTolerance', 1e-12, ...
-            'FiniteDifferenceStepSize', 1e-3, ... % Larger step size
-            'FiniteDifferenceType', 'central', ...
+            'StepTolerance', 1e-12, ... % Less strict
+            'FiniteDifferenceType', 'forward', ...
             'UseParallel', true, ...
-            'OutputFcn', @early_stop_function);
-        
-        [x_final, fval] = fmincon(objfun, x0, [], [], [], [], lb, ub, [], options_fmincon);
-        
+            'OutputFcn', @output_function, ...
+            'Display', 'iter');
+    
+        [x_final, f_final] = fmincon(objfun, x0, [], [], [], [], lb, ub, [], options_fmincon);
+
         % Reshape to [F, s, sigma, el, az, tau]
         x_final = [reshape(x_final, num_columns, [])', repmat(az_default, N, 1), repmat(tau, N, 1)]; 
-        fprintf('N = %d: Final objective value = %.6e, Final x =\n', N, fval);
+        fprintf('N = %d: Final objective value = %.6e, Final x =\n', N, f_final);
         disp(x_final)
         
         % Check stopping criteria
-        if fval < function_tolerance
-            fprintf('Function tolerance (%.1e) reached with N = %d forces!\n', function_tolerance, N);
-            best_fval = fval;
-            best_x = x_final;
-            break;
-        elseif fval < best_fval
-            fprintf('Improvement found with N = %d (%.6e < %.6e)\n', N, fval, best_fval);
-            best_fval = fval;
-            best_x = x_final;
-            if N < N_limit
-                N = N + 1; % Try with more forces if limit not reached
-            else
-                fprintf('N_limit reached with N = %d forces!\n', N);
-                break;
-            end
+        if f_final < f_best
+            fprintf('Improvement found with N = %d (%.6e < %.6e)\n', N, f_final, f_best);
+            f_best = f_final;
+            x_best = x_final;
         else
-            fprintf('No improvement with N = %d (%.6e >= %.6e)\n', N, fval, best_fval);
+            % no improvement adding more forces
+            fprintf('No improvement with N = %d (%.6e >= %.6e)\n', N, f_final, f_best);
             fprintf('Keeping previous best result with N = %d forces\n', N-1);
             N = N-1;
             break;
         end
-            
-        % Safety check to prevent infinite loop
-        if N > 10 % Adjust this limit as needed
-            fprintf('Maximum number of forces (10) reached. Stopping.\n');
-            break;
-        end
     end
     
-    fprintf('\nFinal result: N = %d forces, objective value = %.6e, x =\n', N, best_fval);
-    distal_value = best_x;
+    fprintf('\nFinal result: N = %d forces, objective value = %.6e, x =\n', N, f_best);
+    disp(x_final)
+    distal_value = x_best;
     
-    function obj_val = objective_func(x)
-        % Objective function for N forces
-        % Reshape to [F, s, sigma, el, az, tau]
-        x = [reshape(x, num_columns, [])', repmat(az_default, N, 1), repmat(tau, N, 1)]; 
-        % Calculate proximal values using forward model with N forces
-        result = get_proximal_value(x);
-        result = result(1:end-1); % ignore last element tau
-        
-        % Compute L2 norm of error vector
-        error_vec = result - proximal_value_target;
-        weighted_error_vec = error_vec.* weight_vector;
-        obj_val = norm(weighted_error_vec)^2; % squared L2 norm
+    function r = residual_vec(x, N, num_columns, az_default, tau, prox_target, w)
+        % Reshape to [F, s, sigma, el, az, tau;
+        %               F, s, sigma, el, az, tau ...]
+        X = [reshape(x, num_columns, [])', repmat(az_default, N, 1), repmat(tau, N, 1)]; 
+        y = get_proximal_value(X);   % returns [Fx,Fy,Fz,Tx,Ty,Tz,tau]
+        y = y(1:end-1); % Pop out tau for residual computation
+        r = w .* (y - prox_target);  % residual vector
+        r = r'; % convert to column vector (lsqnonlin requirement)
     end
-    
-    function stop = early_stop_function(x, optimValues, state)
-        % Define stopping function with plotting for local optimization
-        stop = false;
-        
+
+    function stop = output_function(x, optimValues, state)
         if strcmp(state, 'iter')
             % Update plot data for local optimization
             iteration_counter = iteration_counter + 1;
             iterations(end+1) = iteration_counter;
+            f = optimValues.fval; % square of residual
             if isempty(best_values)
-                best_values(end+1) = optimValues.fval;
+                best_values(end+1) = f;
             else
-                best_values(end+1) = min(best_values(end), optimValues.fval);
+                best_values(end+1) = min(best_values(end), f);
             end
             
             % Update plot
             if plot_progress
                 update_plot();
             end
-            
-            % Check stopping criteria
-            if optimValues.fval < function_tolerance
-                stop = true;
-                fprintf('Stopping early: f(x) = %.2e < %.2e\n', optimValues.fval, function_tolerance);
-            end
         end
+        stop = false;
     end
     
     function update_plot()
