@@ -71,6 +71,9 @@ function distal_value = get_distal_value(prox_target, varargin)
         ub = repmat(ub_single, 1, N); % upper bound
         jitter_frac = 1e-2;
         x0 = (lb + ub)/2 + jitter_frac*(ub - lb).*(2*rand(1, numel(lb)) - 1); % initial guess
+
+        % Objective function - NOW RETURNS RESIDUAL VECTOR, NOT SUM OF SQUARES
+        objfun = @(x) residual_vec(x);  % <-- KEY CHANGE: lsqnonlin needs the residual vector
         
         % Least Squares Optimization using lsqnonlin
         options_lsqnonlin = optimoptions('lsqnonlin', ...
@@ -80,16 +83,16 @@ function distal_value = get_distal_value(prox_target, varargin)
             'FunctionTolerance', 1e-16, ... % Replaces OptimalityTolerance
             'StepTolerance', 1e-16, ...
             'OptimalityTolerance', 1e-12, ...
-            'FiniteDifferenceType', 'forward', ...
+            'FiniteDifferenceType', 'central', ...
             'UseParallel', true, ...
             'OutputFcn', @output_function, ... % Modified output function
             'Display', 'iter');
     
-        [x_final, resnorm, residual, exitflag, output] = lsqnonlin(@(x) residual_vec(x), x0, lb, ub, options_lsqnonlin);
+        [x_final, resnorm, residual, exitflag, output] = lsqnonlin(objfun, x0, lb, ub, options_lsqnonlin);
         
         % f_final is now the sum of squared residuals (resnorm)
         f_final = resnorm;  % lsqnonlin returns this directly
-
+        
         % x_final: [F, s, sigma, el]
         % Reshape x_final to [F, s, sigma, el, az, tau]
         x_final = [x_final, az_default, tau];
@@ -109,6 +112,9 @@ function distal_value = get_distal_value(prox_target, varargin)
         jitter_frac = 5e-1;
         x0 = (lb + ub)/2 + jitter_frac*(ub - lb).*(2*rand(1, numel(lb)) - 1); % initial guess
         
+        % Objective function - NOW RETURNS RESIDUAL VECTOR, NOT SUM OF SQUARES
+        objfun = @(x) residual_vec(x);  % <-- KEY CHANGE: lsqnonlin needs the residual vector
+        
         % Least Squares Optimization using lsqnonlin
         options_lsqnonlin = optimoptions('lsqnonlin', ...
             'Algorithm', 'trust-region-reflective', ... % Default algorithm for lsqnonlin
@@ -117,12 +123,12 @@ function distal_value = get_distal_value(prox_target, varargin)
             'FunctionTolerance', 1e-16, ... % Replaces OptimalityTolerance
             'StepTolerance', 1e-16, ...
             'OptimalityTolerance', 1e-12, ...
-            'FiniteDifferenceType', 'forward', ...
+            'FiniteDifferenceType', 'central', ...
             'UseParallel', true, ...
             'OutputFcn', @output_function, ... % Modified output function
             'Display', 'iter');
     
-        [x_final, resnorm, residual, exitflag, output] = lsqnonlin(@(x) residual_vec(x), x0, lb, ub, options_lsqnonlin);
+        [x_final, resnorm, residual, exitflag, output] = lsqnonlin(objfun, x0, lb, ub, options_lsqnonlin);
         
         % f_final is now the sum of squared residuals (resnorm)
         f_final = resnorm;  % lsqnonlin returns this directly
@@ -161,7 +167,11 @@ function distal_value = get_distal_value(prox_target, varargin)
             iterations(end+1) = iteration_counter;
 
             % Get objective function value
-            f = optimValues.resnorm; % For lsqnonlin, use resnorm 
+            if N == 1
+                f = optimValues.fval; % square of residual
+            else
+                f = optimValues.resnorm; % For lsqnonlin, use resnorm instead of fval
+            end 
             
             % Update best value
             if isempty(best_values)
