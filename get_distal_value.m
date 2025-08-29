@@ -109,27 +109,41 @@ function distal_value = get_distal_value(prox_target, varargin)
         jitter_frac = 5e-1;
         x0 = (lb + ub)/2 + jitter_frac*(ub - lb).*(2*rand(1, numel(lb)) - 1); % initial guess
         
-        % Least Squares Optimization using lsqnonlin
-        options_lsqnonlin = optimoptions('lsqnonlin', ...
-            'Algorithm', 'trust-region-reflective', ... % Default algorithm for lsqnonlin
-            'Display', 'iter', ...
-            'MaxFunctionEvaluations', 3000, ...
-            'FunctionTolerance', 1e-16, ... % Replaces OptimalityTolerance
-            'StepTolerance', 1e-16, ...
-            'OptimalityTolerance', 1e-12, ...
-            'FiniteDifferenceType', 'forward', ...
-            'UseParallel', true, ...
-            'OutputFcn', @output_function, ... % Modified output function
-            'Display', 'iter');
-    
-        [x_final, resnorm, residual, exitflag, output] = lsqnonlin(@(x) residual_vec(x), x0, lb, ub, options_lsqnonlin);
+        % Generate Sobol/space-filling start points
+        max_starts = 10;
+        start_points = get_space_filling_points(lb, ub, max_starts);
+        custom_start_points = CustomStartPointSet(start_points);
         
+        % Create optimization problem
+        problem = createOptimProblem('lsqnonlin', ...
+            'objective', @(x) residual_vec(x), ...
+            'x0', x0, ...  % Initial guess (required but will be overridden)
+            'lb', lb, ...
+            'ub', ub, ...
+            'options', optimoptions('lsqnonlin', ...
+                'Algorithm', 'trust-region-reflective', ...
+                'Display', 'off', ...
+                'MaxFunctionEvaluations', 800, ...
+                'FunctionTolerance', 5e-6, ...
+                'OutputFcn',@output_function, ...
+                'StepTolerance', 1e-16));
+        
+        % Create MultiStart object
+        ms = MultiStart('Display', 'iter', ...
+                        'UseParallel', false, ...
+                        'StartPointsToRun', 'all');
+
+
+        [x_final, resnorm, exitflag, output, solutions] = run(ms, problem, custom_start_points);
+
         % f_final is now the sum of squared residuals (resnorm)
         f_final = resnorm;  % lsqnonlin returns this directly
 
         % x_final: [F1, s1, el1, F2, s2, el2]    
         % Reshape x_final to [F1, s1, sigma1, el1, az1, tau1; F2, s2, sigma2, el2, az2, tau2]
-        x_final = [reshape(x_final, 3, N)', repmat(az_default, N, 1), repmat(tau, N, 1)]; 
+        x_final = reshape(x_final,3,N).';  % makes it Nx3
+        x_final = [x_final(:,1), x_final(:,2), repmat(sigma_default, N, 1), x_final(:,3),...
+            repmat(az_default, N, 1), repmat(tau, N, 1)]; 
         fprintf('Multi force optimization complete!\n')
         fprintf('Objective func = %.6e\n',f_final);
         fprintf('x =\n');
@@ -200,6 +214,29 @@ function distal_value = get_distal_value(prox_target, varargin)
             arrayfun(@(k) sprintf('N = %d', k), drawn, 'UniformOutput', false), ...
             'Location','northeast');
         drawnow;
+    end
+    
+    function points = get_space_filling_points(lb, ub, n_points)
+        % Simple space-filling points using Sobol or fallback methods
+        % Returns n_points x ndim matrix scaled to [lb, ub]
+        
+        ndim = numel(lb);
+        
+        % Try Sobol first (best option)
+        if exist('sobolset', 'file')
+            sob = sobolset(ndim, 'Skip', 1000);
+            unit_points = net(sob, n_points);
+        % Fallback to Latin Hypercube
+        elseif exist('lhsdesign', 'file')
+            unit_points = lhsdesign(n_points, ndim);
+        % Last resort: stratified random
+        else
+            unit_points = (randperm(n_points)' - 0.5)/n_points * ones(1, ndim);
+            unit_points = unit_points + rand(n_points, ndim)/n_points;
+        end
+        
+        % Scale from [0,1] to bounds
+        points = lb + unit_points .* (ub - lb);
     end
 
 end
