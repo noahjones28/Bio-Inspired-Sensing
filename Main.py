@@ -10,5 +10,5 @@ if __name__ == "__main__":
     #DataAnalyzer.collect_samples()
     proximal = np.load('proximal_values.npy')
     distal = np.load('distal_values.npy')
-    std_error = np.array([0,0,0.002,0.005,0.01,0])
+    std_error = np.array([5e-2, 5e-2, 5e-2, 5e-2, 5e-2,5e-2])
     DataAnalyzer.validate_inverse_model(proximal, distal, std_error=std_error)

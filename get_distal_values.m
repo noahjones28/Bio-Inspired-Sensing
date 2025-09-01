@@ -8,7 +8,7 @@ function distal_values = get_distal_values(proximal_values, num_distal)
 
     % Defualt argument
     if nargin < 2
-        num_distal = 4; % (4 becuase F,s,sigma,tau)
+        num_distal = 5; % 5 becuase[F, s, el, az, tau]
     end
     
     % Initialize futures array
@@ -21,14 +21,14 @@ function distal_values = get_distal_values(proximal_values, num_distal)
         futures(index) = parfeval(@get_distal_value, 1, proximal_value);
     end
     
-    % Initialize results as 100x3 matrix
+    % Initialize results as num_samplesx4 matrix
     distal_values = zeros(num_samples, num_distal);
     
     % Fetch outputs for all futures
     fprintf('Processing %d samples...\n', num_samples);
     for i = 1:length(futures)
         try
-            result = fetchOutputs(futures(i)); % This is 1x4
+            result = fetchOutputs(futures(i)); % This is 1x5
             distal_values(i, :) = result; % <-- Store as row i
             fprintf('Completed %d/%d\n', i, num_samples);
         catch ME

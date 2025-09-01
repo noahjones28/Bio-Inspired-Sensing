@@ -1,10 +1,25 @@
 function proximal_value = get_proximal_value(distal_values)
-    % distal_values N×6 matrix [F, s, sigma, el, az, tau]
+    % distal_values N×6 matrix [F, s, el, az, tau]
     % Load robot
     load("my_robot.mat")
     % Extract tau (always the last element)
     tau = -1*abs(distal_values(end)); % Negative because pulling tendon
     
+    % %Change radius (commented out in original)
+    % vals = [0.00351997, 0.00153437, 0.00320329, 0.00143504, 0.00289957,...
+    %     0.00132352, 0.00260732, 0.00120121, 0.00232522, 0.00106937,...
+    %     0.00205208, 0.00092908, 0.00178689, 0.00078132, 0.00152873,...
+    %     0.00062695, 0.00127678, 0.00046673, 0.00103034, 0.00030133];
+    % for i=1:20
+    %     S1.VLinks.r{i} = @(X1)vals(i);
+    %     S1.CVRods{1}(i+1).UpdateAll;
+    %     S1 = S1.Update();
+    % end
+    
+    % S1.VLinks.r{1} = @(X1) (0.0012*exp(-6*X1*L1.L)*sin(314*X1*L1.L))+(0.0012+0.00127)-0.01*X1*L1.L;
+    % S1.CVRods{1}(1+1).UpdateAll;
+    % S1 = S1.Update();
+
     % Apply multiple Gaussian forces
     S1 = apply_gaussian_force(S1, distal_values, 200, false);
     
