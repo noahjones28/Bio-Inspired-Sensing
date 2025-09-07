@@ -2,32 +2,38 @@ function distal_value = get_distal_value(prox_target, varargin)
     close all; 
     % Properties
     weight_vector = [1, 1, 1, 1, 1, 1]; % Set weights for [Tx,Ty,Tz,Fx,Fy,Fz]
-    uncertainties_vector = [1e-2, 1e-2, 1e-2, 1e-2, 1e-2, 1e-2]; % Set uncertianties for [Tx,Ty,Tz,Fx,Fy,Fz]
-    lb_single = [0.05, 0.05, 0]; % Lower bounds for [F,s,el]
-    ub_single = [1, 0.2, 2*pi]; % Upper bounds for [F,s,el]
-    az_default = pi/2; % Default azimuth angle
+    uncertainties_vector = [5e-3, 5e-3, 5e-3, 5e-2, 5e-2, 5e-2]; % Set uncertianties for [Tx,Ty,Tz,Fx,Fy,Fz]
+    lb_single = [0.05, 0.05, -pi/2, -pi]; % Lower bounds for [F,s,el,az]
+    ub_single = [1, 0.2, pi/2, pi]; % Upper bounds for [F,s,el,az]
     N_limit = 1; % Limit on how many loads to check for
-    plot_progress = true; % enable or disable the live plot
+    plot_residual = true; % enable or disable the live plot
+    plot_force = true; % enable or disable the live plot
+    uncertainty = false;
     tau = prox_target(end); % Split off tau
     prox_target = prox_target(1:end-1);
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];
-    uncertainty = false;
     
     % Optional simulate uncertianty
     if uncertainty
-        noise = uncertainties_vector .* randn(size(prox_target));
+        noise = uncertainties_vector .* ones(size(prox_target));
         prox_target = prox_target + noise; % Use noisy target
     end
 
-    % Create figure for real-time plotting
-    if plot_progress
+    % Create figure for real-time residual
+    if plot_residual
         fig = figure('Name', 'Optimization Progress', 'Position', [100, 100, 600, 400]);
         ax  = axes('Parent', fig);        % explicit axes
         set(ax,'YScale','log');           % force semilog-y
         grid(ax,'on'); box(ax,'on'); hold(ax,'on');
         colors = lines(N_limit); % distinct colors for each N
         plot_handles = gobjects(1, N_limit); % store a line handle per N
+    end
+
+    % Create figure for force plot
+    if plot_force  % assuming this variable exists in your scope
+        fig_handle = figure;
+        set(fig_handle, 'Name', 'Force Optimization Progress');
     end
     
     % Optimization start
@@ -100,7 +106,6 @@ function distal_value = get_distal_value(prox_target, varargin)
         % Create MultiStart object
         ms = MultiStart('Display', 'iter', ...
                         'UseParallel', false, ...
-                        'OutputFcn', @stopWhenBelow, ...
                         'StartPointsToRun', 'all');
 
 
@@ -109,9 +114,9 @@ function distal_value = get_distal_value(prox_target, varargin)
         % f_final is now the sum of squared residuals (resnorm)
         f_final = resnorm;  % lsqnonlin returns this directly
 
-        % x_final: [F, s, el]
+        % x_final: [F, s, el, az]
         % Reshape x_final to [F, s, el, az, tau]
-        x_final = [x_final, az_default, tau];
+        x_final = [x_final, tau];
         fprintf('Single force optimization complete!\n')
         fprintf('Objective func = %.6e\n',f_final);
         fprintf('x =\n');
@@ -159,7 +164,7 @@ function distal_value = get_distal_value(prox_target, varargin)
         % x_final: [F1, s1, el1, F2, s2, el2]    
         % Reshape x_final to [F1, s1, el1, az1, tau1; F2, s2, el2, az2, tau2]
         x_final = reshape(x_final,3,N).';  % makes it Nx3
-        x_final = [x_final, repmat(az_default, N, 1), repmat(tau, N, 1)]; 
+        x_final = [x_final, repmat(pi/2, N, 1), repmat(tau, N, 1)]; 
         fprintf('Multi force optimization complete!\n')
         fprintf('Objective func = %.6e\n',f_final);
         fprintf('x =\n');
@@ -168,14 +173,14 @@ function distal_value = get_distal_value(prox_target, varargin)
     
     function r = residual_vec(x)
         if N == 1
-            % x: [F, s, el]
+            % x: [F, s, el, az]
             % Reshape x to [F, s, el, az, tau]
-            X = [x az_default, tau]; 
+            X = [x, tau]; 
         else
             % x: [F1, s1, el1, F2, s2, el2]    
             % Reshape x to [F1, s1, el1, az1, tau1; F2, s2, el2, az2, tau2]
             x = reshape(x,3,N).';  % makes it Nx3
-            X = [x, repmat(az_default, N, 1), repmat(tau, N, 1)]; 
+            X = [x, repmat(pi/2, N, 1), repmat(tau, N, 1)]; 
         end 
         y = get_proximal_value(X);   % returns [Tx,Ty,Tz,Fx,Fy,Fz,tau]
         y = y(1:end-1); % Pop out tau for residual computation
@@ -186,6 +191,7 @@ function distal_value = get_distal_value(prox_target, varargin)
     function stop = output_function(x, optimValues, state)
         % Initial condition
         stop = false;
+
         if strcmp(state, 'iter') % Each iteration
             % Update iteration count
             iteration_counter = iteration_counter + 1;
@@ -200,22 +206,33 @@ function distal_value = get_distal_value(prox_target, varargin)
             else
                 best_values(end+1) = min(best_values(end), f);
             end
+
+            % Update plot with current force configuration if new best
+            if plot_force
+                if f == best_values(end) && ishandle(fig_handle)
+                    update_force_plot(x, fig_handle);
+                end
+            end
           
-            % Update plot
-            if plot_progress
+            % Update residual plot
+            if plot_residual
                 update_plot();
             end
+            
         end
     end
-    
-    function stop = stopWhenBelow(optimValues, state)
-        stop = false;
-        if strcmp(state,'iter')  % runs after each local solver call
-            if optimValues.localsolution.Exitflag > 0 ...
-               && optimValues.localsolution.Fval <= 1e-12
-                stop = true;  % halt MultiStart
-            end
+
+    function update_force_plot(x, fig_handle)
+        % Reconstruct X from current optimization variables
+        if N == 1
+            X = [x, tau];
+        else
+            x_reshaped = reshape(x,3,N).';
+            X = [x_reshaped, repmat(pi/2, N, 1), repmat(tau, N, 1)];
         end
+        
+        % Get proximal values with plotting enabled
+        y = get_proximal_value(X, true, fig_handle); % Pass figure handle
     end
     
     function update_plot()

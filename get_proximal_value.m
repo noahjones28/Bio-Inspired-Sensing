@@ -1,10 +1,18 @@
-function proximal_value = get_proximal_value(distal_values)
+function proximal_value = get_proximal_value(distal_values, doPlot, fig_handle)
+    if nargin < 3   % if fig_handle was not provided
+        fig_handle = false;      % default value
+    end
+    if nargin < 2   % if doPlot was not provided
+        doPlot = false;     % default value
+    end
+    add_tendon_contribution_from_spreadsheet = false;
+    spreadsheet_filename = '\SoRoSim Robots\my_robot(2.0to1.0)\tendon_table.xlsx';
     % distal_values N×6 matrix [F, s, el, az, tau]
     % Load robot
-    load("my_robot.mat")
+    load("my_robot.mat");
     % Extract tau (always the last element)
     tau = -1*abs(distal_values(end)); % Negative because pulling tendon
-    
+
     % %Change radius (commented out in original)
     % vals = [0.00351997, 0.00153437, 0.00320329, 0.00143504, 0.00289957,...
     %     0.00132352, 0.00260732, 0.00120121, 0.00232522, 0.00106937,...
@@ -21,24 +29,30 @@ function proximal_value = get_proximal_value(distal_values)
     % S1 = S1.Update();
 
     % Apply multiple Gaussian forces
-    S1 = apply_gaussian_force(S1, distal_values, 200, false);
+    S1 = apply_gaussian_force(S1, distal_values, 200, doPlot, fig_handle);
     
     % Initial Guess
     x0 = zeros(18,1);
     % initial joint values
     action = [tau;0;0;0;0;0;0];
-    [q,u,lambda] = S1.statics(x0,action,'plotResult',false,'Display','off');
+    [q,u,lambda] = S1.statics(x0,action,'plotResult',true,'Display','off');
+    u = -u(1:end-1)'; %flip sign, remove tau, transpose
     
     % u = [Tx_body,Ty_body,Tz_body,Fx_body,Fy_body,Fz_body]
     % minus signs are added becuase u is the wrench on the robot body not
     % on the 6-axis ft sensor
+    if add_tendon_contribution_from_spreadsheet && tau ~= 0
+        [row_vector, row_index] = findClosestRow(spreadsheet_filename, 1, 1, tau);
+        u = u+row_vector;
+    end
     
-    Tx = -u(1);
-    Ty = -u(2);
-    Tz = -u(3);
-    Fx = -u(4);
-    Fy = -u(5);
-    Fz = -u(6);
+    Tx = u(1);
+    Ty = u(2);
+    Tz = u(3);
+    Fx = u(4);
+    Fy = u(5);
+    Fz = u(6);
     
     proximal_value = [Tx,Ty,Tz,Fx,Fy,Fz,tau];
+
 end
