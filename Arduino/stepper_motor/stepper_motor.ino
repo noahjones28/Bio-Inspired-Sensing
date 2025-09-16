@@ -1,93 +1,80 @@
 /*
-  TMC2209 + Mega2560 (Elegoo/Arduino)
-  - Uses UART on Serial1 (pins 18/19)
-  - Blocking demo: moves forward then back
-  - Change R_SENSE and current to match your driver!
+  TMC2209 Multiple Motor Controller - Individual Control
 */
 
 #include <TMCStepper.h>
 
-// ===== Pins =====
-constexpr uint8_t STEP_PIN = 30;
-constexpr uint8_t DIR_PIN  = 40;
-constexpr uint8_t EN_PIN   = 50;
+// Pin connections
+const int MOTOR1_STEP_PIN = 22, MOTOR1_DIR_PIN = 23, MOTOR1_EN_PIN = 24;
+const int MOTOR2_STEP_PIN = 25, MOTOR2_DIR_PIN = 26, MOTOR2_EN_PIN = 27;
 
-// ===== Driver config =====
-// Sense resistor: common modules use 0.11 Ω; some use 0.15 Ω (check your board)
-constexpr float   R_SENSE = 0.11f;
-// Address set by MS1/MS2 (CFG) pins in UART mode; default 0b00
-constexpr uint8_t DRIVER_ADDRESS = 0b00;
+// Driver settings
+const float SENSE_RESISTOR = 0.11;
 
-// Hardware UART on Mega 2560
-TMC2209Stepper driver(&Serial1, R_SENSE, DRIVER_ADDRESS);
+// Create separate driver objects with different UART addresses
+TMC2209Stepper driver1(&Serial1, SENSE_RESISTOR, 0);  // Address 0 (MS1=LOW, MS2=LOW)
+TMC2209Stepper driver2(&Serial1, SENSE_RESISTOR, 1);  // Address 1 (MS1=HIGH, MS2=LOW)
 
-// ===== Motion params =====
-const long STEPS_PER_REV = 200 * 16;     // 1.8° motor * 16 microsteps = 3200
-const long TRAVEL_STEPS  = STEPS_PER_REV; // one rev per move
-const uint32_t STEP_DELAY_US = 800;      // smaller = faster (e.g., 800 µs ≈ 1250 steps/s)
-
-// ===== Helpers =====
-void stepN(long steps, bool dir, uint32_t delay_us_each) {
-  digitalWrite(DIR_PIN, dir ? HIGH : LOW);
-  for (long i = 0; i < steps; i++) {
-    digitalWrite(STEP_PIN, HIGH);
-    delayMicroseconds(2);           // min high time
-    digitalWrite(STEP_PIN, LOW);
-    delayMicroseconds(delay_us_each);
-  }
-}
-
-void configureDriver() {
-  // Bring up UART
-  Serial1.begin(115200);   // TMC2209 default UART baud (can do 57600–115200)
-  delay(10);
-
-  driver.begin();          // init UART
-  // Required to enable driver
-  pinMode(EN_PIN, OUTPUT);
-  digitalWrite(EN_PIN, LOW); // LOW = enabled
-
-  // ===== Core driver tuning =====
-  driver.toff(5);              // enable driver, recommended 3–5
-  driver.blank_time(24);
-  driver.rms_current(900);     // mA RMS (set for your motor/thermal limits)
-  driver.microsteps(16);       // 1,2,4,8,16,32,64,128,256
-  driver.en_spreadCycle(false);// false = stealthChop (quiet)
-  driver.pwm_autoscale(true);  // needed for stealthChop
-  driver.pwm_autograd(true);
-
-  // Optional: set TCOOLTHRS if you ever use StallGuard (spreadCycle)
-  // driver.TCOOLTHRS(0xFFFF);
-
-  // Optional sanity prints
-  Serial.println("TMC2209 configured.");
-  Serial.print("DRV_STATUS: 0x"); Serial.println(driver.DRV_STATUS(), HEX);
-}
+// Movement settings
+const int STEPS_PER_REV = 200 * 16;  // Assuming 16 microsteps for both
+const int STEP_DELAY = 800;
 
 void setup() {
-  // USB serial for logs
   Serial.begin(115200);
-  while (!Serial) {}  // wait for USB on some boards
-
-  pinMode(STEP_PIN, OUTPUT);
-  pinMode(DIR_PIN,  OUTPUT);
-  pinMode(EN_PIN,   OUTPUT);
-  digitalWrite(EN_PIN, LOW);   // enable output
-
-  configureDriver();
-
-  Serial.println("Ready. Moving soon...");
+  
+  // Set pins as outputs and enable motors
+  pinMode(MOTOR1_STEP_PIN, OUTPUT); pinMode(MOTOR1_DIR_PIN, OUTPUT); pinMode(MOTOR1_EN_PIN, OUTPUT);
+  pinMode(MOTOR2_STEP_PIN, OUTPUT); pinMode(MOTOR2_DIR_PIN, OUTPUT); pinMode(MOTOR2_EN_PIN, OUTPUT);
+  digitalWrite(MOTOR1_EN_PIN, LOW);
+  digitalWrite(MOTOR2_EN_PIN, LOW);
+  
+  // Start UART communication
+  Serial1.begin(115200);
+  delay(10);
+  
+  // Configure Motor 1 (driver1)
+  driver1.begin();
+  driver1.toff(5);
+  driver1.rms_current(1500);        // Motor 1: Current in mA (set to 60-80% of rated current)
+  driver1.microsteps(32);           // Motor 1: 16 microsteps
+  driver1.en_spreadCycle(false);
+  driver1.pwm_autoscale(true);
+  driver1.pwm_autograd(true);
+  
+  // Configure Motor 2 (driver2) - different settings!
+  driver2.begin();
+  driver2.toff(5);
+  driver2.rms_current(1500);         // Motor 2: 800mA (different current)
+  driver2.microsteps(32);            // Motor 2: 8 microsteps (different microstepping)
+  driver2.en_spreadCycle(false);
+  driver2.pwm_autoscale(true);
+  driver2.pwm_autograd(true);
+  
+  Serial.println("Both TMC2209s configured with individual settings");
   delay(500);
 }
 
 void loop() {
-  // Forward one revolution
   Serial.println("Forward");
-  stepN(TRAVEL_STEPS, /*dir=*/true, STEP_DELAY_US);
+  moveMotors(STEPS_PER_REV, true);
   delay(300);
-
-  // Backward one revolution
+  
   Serial.println("Backward");
-  stepN(TRAVEL_STEPS, /*dir=*/false, STEP_DELAY_US);
+  moveMotors(STEPS_PER_REV, false);
   delay(600);
+}
+
+// Move both motors (they can have different settings but same step count)
+void moveMotors(int steps, bool forward) {
+  digitalWrite(MOTOR1_DIR_PIN, forward ? HIGH : LOW);
+  digitalWrite(MOTOR2_DIR_PIN, forward ? HIGH : LOW);
+  
+  for (int i = 0; i < steps; i++) {
+    digitalWrite(MOTOR1_STEP_PIN, HIGH);
+    digitalWrite(MOTOR2_STEP_PIN, HIGH);
+    delayMicroseconds(2);
+    digitalWrite(MOTOR1_STEP_PIN, LOW);
+    digitalWrite(MOTOR2_STEP_PIN, LOW);
+    delayMicroseconds(STEP_DELAY);
+  }
 }

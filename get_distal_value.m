@@ -1,16 +1,14 @@
-function distal_value = get_distal_value(prox_target, varargin)
+function distal_value = get_distal_value(prox_target, tau_array, varargin)
     close all; 
     % Properties
     weight_vector = [1, 1, 1, 1, 1, 1]; % Set weights for [Tx,Ty,Tz,Fx,Fy,Fz]
     uncertainties_vector = [5e-3, 5e-3, 5e-3, 5e-2, 5e-2, 5e-2]; % Set uncertianties for [Tx,Ty,Tz,Fx,Fy,Fz]
-    lb_single = [0.05, 0.05, -pi/2, -pi]; % Lower bounds for [F,s,el,az]
-    ub_single = [1, 0.2, pi/2, pi]; % Upper bounds for [F,s,el,az]
+    lb = [0.05, 0.05, -pi/2, -pi]; % Lower bounds for [F,s,el,az]
+    ub = [1, 0.2, pi/2, pi]; % Upper bounds for [F,s,el,az]
     N_limit = 1; % Limit on how many loads to check for
     plot_residual = true; % enable or disable the live plot
     plot_force = true; % enable or disable the live plot
     uncertainty = false;
-    tau = prox_target(end); % Split off tau
-    prox_target = prox_target(1:end-1);
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];
     
@@ -45,11 +43,6 @@ function distal_value = get_distal_value(prox_target, varargin)
         best_values = [];
         iterations = [];
 
-        % Bounds
-        lb = repmat(lb_single, 1, N); % lower bound
-        ub = repmat(ub_single, 1, N); % upper bound
-        x0 = (lb + ub)/2; % initial guess
-        
         % Choose problem type
         if N == 1
             [x_final, f_final] = single_force_optimization();
@@ -89,6 +82,9 @@ function distal_value = get_distal_value(prox_target, varargin)
         start_points = get_space_filling_points(lb, ub, max_starts);
         custom_start_points = CustomStartPointSet(start_points);
         
+        % Initial guess
+        x0 = (lb + ub)/2;
+        
         % Create optimization problem
         problem = createOptimProblem('lsqnonlin', ...
             'objective', @(x) residual_vec(x), ...
@@ -108,15 +104,12 @@ function distal_value = get_distal_value(prox_target, varargin)
                         'UseParallel', false, ...
                         'StartPointsToRun', 'all');
 
-
         [x_final, resnorm, exitflag, output, solutions] = run(ms, problem, custom_start_points);
-
+        
+        % x_final: [F, s, el, az]
         % f_final is now the sum of squared residuals (resnorm)
         f_final = resnorm;  % lsqnonlin returns this directly
 
-        % x_final: [F, s, el, az]
-        % Reshape x_final to [F, s, el, az, tau]
-        x_final = [x_final, tau];
         fprintf('Single force optimization complete!\n')
         fprintf('Objective func = %.6e\n',f_final);
         fprintf('x =\n');
@@ -126,8 +119,10 @@ function distal_value = get_distal_value(prox_target, varargin)
     function [x_final, f_final] = multi_force_optimization()
         % Finds [F1, s1, el1, F2, s2, el2] for two point forces
       
-        lb = repmat(lb_single, 1, N); % lower bound [F1,s1,el1,F2,s2,el2...]
-        ub = repmat(ub_single, 1, N); % upper bound [F1,s1,el1,F2,s2,el2...]
+        lb = repmat([lb(1:2), 0], 1, N); % lower bound [F1,s1,el1,F2,s2,el2...]
+        ub = repmat([ub(1:2), 2*pi], 1, N); % upper bound [F1,s1,el1,F2,s2,el2...]
+        
+        % Initial guess
         jitter_frac = 5e-1;
         x0 = (lb + ub)/2 + jitter_frac*(ub - lb).*(2*rand(1, numel(lb)) - 1); % initial guess
         
@@ -152,7 +147,6 @@ function distal_value = get_distal_value(prox_target, varargin)
         ms = MultiStart('Display', 'iter', ...
                         'UseParallel', false, ...
                         'MaxTime', 120, ...
-                        'OutputFcn', @stopWhenBelow, ...
                         'StartPointsToRun', 'all');
 
 
@@ -162,9 +156,9 @@ function distal_value = get_distal_value(prox_target, varargin)
         f_final = resnorm;  % lsqnonlin returns this directly
 
         % x_final: [F1, s1, el1, F2, s2, el2]    
-        % Reshape x_final to [F1, s1, el1, az1, tau1; F2, s2, el2, az2, tau2]
-        x_final = reshape(x_final,3,N).';  % makes it Nx3
-        x_final = [x_final, repmat(pi/2, N, 1), repmat(tau, N, 1)]; 
+        % Reshape x_final to [F1, s1, el1, az1; F2, s2, el2, az2]
+        x_final = reshape(x,3,N)';  % makes it Nx3
+        x_final = [x_final, repmat(pi/2, N, 1)];
         fprintf('Multi force optimization complete!\n')
         fprintf('Objective func = %.6e\n',f_final);
         fprintf('x =\n');
@@ -172,18 +166,12 @@ function distal_value = get_distal_value(prox_target, varargin)
     end
     
     function r = residual_vec(x)
-        if N == 1
-            % x: [F, s, el, az]
-            % Reshape x to [F, s, el, az, tau]
-            X = [x, tau]; 
-        else
-            % x: [F1, s1, el1, F2, s2, el2]    
-            % Reshape x to [F1, s1, el1, az1, tau1; F2, s2, el2, az2, tau2]
-            x = reshape(x,3,N).';  % makes it Nx3
-            X = [x, repmat(pi/2, N, 1), repmat(tau, N, 1)]; 
+        if N > 1
+            % if multi-contact reshape x from [F1, s1, el1, F2, s2, el2] to [F1, s1, el1, az1; F2, s2, el2, az2] 
+            x = reshape(x,3,N)';  % makes it Nx3
+            x = [x, repmat(pi/2, N, 1)];
         end 
-        y = get_proximal_value(X);   % returns [Tx,Ty,Tz,Fx,Fy,Fz,tau]
-        y = y(1:end-1); % Pop out tau for residual computation
+        y = get_proximal_value(x, tau_array);   % returns [Tx,Ty,Tz,Fx,Fy,Fz]
         r = weight_vector .* (y - prox_target);  % weighted residual vector
         r = r'; % transpose residual to column vector (lsqnonlin expects a column vector) 
     end
@@ -223,16 +211,14 @@ function distal_value = get_distal_value(prox_target, varargin)
     end
 
     function update_force_plot(x, fig_handle)
-        % Reconstruct X from current optimization variables
-        if N == 1
-            X = [x, tau];
-        else
-            x_reshaped = reshape(x,3,N).';
-            X = [x_reshaped, repmat(pi/2, N, 1), repmat(tau, N, 1)];
-        end
+        if N > 1
+            % if multi-contact reshape x from [F1, s1, el1, F2, s2, el2] to [F1, s1, el1, az1; F2, s2, el2, az2] 
+            x = reshape(x,3,N)';  % makes it Nx3
+            x = [x, repmat(pi/2, N, 1)];
+        end 
         
         % Get proximal values with plotting enabled
-        y = get_proximal_value(X, true, fig_handle); % Pass figure handle
+        y = get_proximal_value(x, tau_array, true, fig_handle); % Pass figure handle
     end
     
     function update_plot()
