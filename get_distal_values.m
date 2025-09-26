@@ -1,4 +1,4 @@
-function distal_values = get_distal_values(proximal_values, num_distal)
+function distal_values = get_distal_values(proximal_values)
     % Create a parallel pool if one isn't already open
     if isempty(gcp('nocreate'))
         localCluster = parcluster('Noah12');
@@ -6,10 +6,9 @@ function distal_values = get_distal_values(proximal_values, num_distal)
         parpool(localCluster)
     end
 
-    % Defualt argument
-    if nargin < 2
-        num_distal = 5; % 5 becuase[F, s, el, az, tau]
-    end
+    tau_arrays = proximal_values(:, 7:end); % [tau1, tau2, tau3]
+    proximal_values = proximal_values(:, 1:6); % [Tx, Ty, Tz, Fx, Fy, Fz]
+    
     
     % Initialize futures array
     num_samples = size(proximal_values, 1);
@@ -18,11 +17,12 @@ function distal_values = get_distal_values(proximal_values, num_distal)
     % Loop through all rows
     for index = 1:num_samples
         proximal_value = proximal_values(index, :);  % Pass entire row
-        futures(index) = parfeval(@get_distal_value, 1, proximal_value);
+        tau_array = tau_arrays(index, :);
+        futures(index) = parfeval(@get_distal_value, 1, proximal_value, tau_array);
     end
     
     % Initialize results as num_samplesx4 matrix
-    distal_values = zeros(num_samples, num_distal);
+    distal_values = zeros(num_samples, 4);
     
     % Fetch outputs for all futures
     fprintf('Processing %d samples...\n', num_samples);

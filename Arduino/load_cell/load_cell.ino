@@ -4,8 +4,8 @@
 #endif
 
 // Pin definitions for the load cells
-const int LOADCELL_DOUT_PIN_X = 2; // X-axis load cell data pin
-const int LOADCELL_SCK_PIN_X = 3;  // X-axis load cell clock pin
+const int LOADCELL_DOUT_PIN_X = 6; // X-axis load cell data pin
+const int LOADCELL_SCK_PIN_X = 7;  // X-axis load cell clock pin
 
 //HX711 constructor:
 HX711_ADC LoadCellX(LOADCELL_DOUT_PIN_X, LOADCELL_SCK_PIN_X);
@@ -27,7 +27,7 @@ void setup() {
     while (1);
   }
   else {
-    LoadCellX.setCalFactor(178000.0); // user set calibration value (float), initial value 1.0 may be used for this sketch
+    LoadCellX.setCalFactor(105000.0); // user set calibration value (float), initial value 1.0 may be used for this sketch
   }
   while (!LoadCellX.update());
   calibrate(); //start calibration procedure

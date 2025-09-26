@@ -7,7 +7,7 @@
 #include <HX711_ADC.h>
 
 // Motor pin connections
-const int MOTOR1_STEP_PIN = 22, MOTOR1_DIR_PIN = 23, MOTOR1_EN_PIN = 24;
+const int MOTOR1_STEP_PIN = 31, MOTOR1_DIR_PIN = 32, MOTOR1_EN_PIN = 30;
 const int MOTOR2_STEP_PIN = 25, MOTOR2_DIR_PIN = 26, MOTOR2_EN_PIN = 27;
 
 // Load cell pin connections
@@ -26,8 +26,9 @@ HX711_ADC LoadCell2(LOADCELL2_DOUT_PIN, LOADCELL2_SCK_PIN);
 // Control variables
 float targetTension1 = 0, targetTension2 = 0;
 const int STEP_DELAY = 1000;  // Slower steps for precise control
-const float TOLERANCE = 0.1;  // Stop when within this range of target
-bool cancelOperation = false;
+const float TOLERANCE = 0.02;  // Stop when within this range of target
+const float ZERO_TOLERANCE = 0.1;  // Stop when within this range of home
+bool returningToZero = false;  // Flag to track when returning to zero after cancel
 
 void setup() {
   Serial.begin(115200);
@@ -38,7 +39,7 @@ void setup() {
   getUserTargets();
   
   Serial.println("System ready. Motors will adjust to target tensions.");
-  Serial.println("Send 'c' anytime to cancel and return to zero tension.");
+  Serial.println("Send 'c' anytime to cancel and set tensions to zero.");
 }
 
 void loop() {
@@ -46,8 +47,14 @@ void loop() {
   if (Serial.available() > 0) {
     char command = Serial.read();
     if (command == 'c' || command == 'C') {
-      cancelOperation = true;
-      Serial.println("\nOperation cancelled. Returning tensions to zero...");
+      targetTension1 = 0;
+      targetTension2 = 0;
+      returningToZero = true;
+      Serial.println("\nOperation cancelled. Target tensions set to zero.");
+      // Flush any remaining serial input
+      while (Serial.available() > 0) {
+        Serial.read();
+      }
     }
   }
   
@@ -57,36 +64,25 @@ void loop() {
   float tension1 = LoadCell1.getData();
   float tension2 = LoadCell2.getData();
   
-  if (cancelOperation) {
-    // Return both tensions to zero
-    if (abs(tension1) > TOLERANCE) {
-      adjustMicrosteps(1, abs(tension1));
-      stepMotor(1, tension1 > 0);  // Step to reduce tension
-    }
-    if (abs(tension2) > TOLERANCE) {
-      adjustMicrosteps(2, abs(tension2));
-      stepMotor(2, tension2 > 0);  // Step to reduce tension
-    }
-    
-    // Check if both are at zero
-    if (abs(tension1) <= TOLERANCE && abs(tension2) <= TOLERANCE) {
-      Serial.println("Tensions returned to zero. Ready for new targets.");
-      cancelOperation = false;
-      getUserTargets();  // Get new targets
-    }
-  } else {
-    // Normal tension control
-    float error1 = tension1 - targetTension1;
-    if (abs(error1) > TOLERANCE) {
-      adjustMicrosteps(1, abs(error1));
-      stepMotor(1, error1 < 0);
-    }
-    
-    float error2 = tension2 - targetTension2;
-    if (abs(error2) > TOLERANCE) {
-      adjustMicrosteps(2, abs(error2));
-      stepMotor(2, error2 < 0);
-    }
+  // Check if we've reached zero after cancel and should get new targets
+  if (returningToZero && abs(tension1) <= ZERO_TOLERANCE && abs(tension2) <= ZERO_TOLERANCE) {
+    Serial.println("Tensions returned to zero. Ready for new targets.");
+    returningToZero = false;
+    getUserTargets();
+    return; // Skip the rest of this loop iteration
+  }
+  
+  // Normal tension control for both motors
+  float error1 = tension1 - targetTension1;
+  if (abs(error1) > TOLERANCE) {
+    adjustMicrosteps(1, abs(error1));
+    stepMotor(1, error1 < 0);
+  }
+  
+  float error2 = tension2 - targetTension2;
+  if (abs(error2) > TOLERANCE) {
+    adjustMicrosteps(2, abs(error2));
+    stepMotor(2, error2 < 0);
   }
   
   // Print status for plotting (faster update rate)
@@ -108,12 +104,8 @@ void setupMotors() {
   // Configure pins
   pinMode(MOTOR1_STEP_PIN, OUTPUT); pinMode(MOTOR1_DIR_PIN, OUTPUT); pinMode(MOTOR1_EN_PIN, OUTPUT);
   pinMode(MOTOR2_STEP_PIN, OUTPUT); pinMode(MOTOR2_DIR_PIN, OUTPUT); pinMode(MOTOR2_EN_PIN, OUTPUT);
-  digitalWrite(MOTOR1_EN_PIN, LOW); // Enable motors
-  digitalWrite(MOTOR2_EN_PIN, LOW);
-  
-  // Set direction for tensioning (adjust if motors wind opposite directions)
-  digitalWrite(MOTOR1_DIR_PIN, LOW); // Forward = increase tension
-  digitalWrite(MOTOR2_DIR_PIN, LOW);
+  digitalWrite(MOTOR1_EN_PIN, HIGH); // Disable motors
+  digitalWrite(MOTOR2_EN_PIN, HIGH);
   
   // Configure TMC2209 drivers
   Serial1.begin(115200);
@@ -121,19 +113,23 @@ void setupMotors() {
   
   driver1.begin();
   driver1.toff(5);
-  driver1.rms_current(1500);
-  driver1.microsteps(32);
+  driver1.I_scale_analog(false);  // false = use UART for current
+  driver1.rms_current(1600);
   driver1.en_spreadCycle(false);
   driver1.pwm_autoscale(true);
   driver1.pwm_autograd(true);
-  
+
   driver2.begin();
   driver2.toff(5);
-  driver2.rms_current(1500);
-  driver2.microsteps(32);
+  driver2.I_scale_analog(false);  // false = use UART for current
+  driver2.rms_current(1600);
   driver2.en_spreadCycle(false);
   driver2.pwm_autoscale(true);
   driver2.pwm_autograd(true);
+
+  delay(1000);
+  digitalWrite(MOTOR1_EN_PIN, LOW); // Enable motors
+  digitalWrite(MOTOR2_EN_PIN, LOW);
   
   Serial.println("Motors configured");
 }
@@ -160,42 +156,52 @@ void setupLoadCells() {
 
 // Get target tensions from user
 void getUserTargets() {
+  // Flush leftover serial input (e.g., '\n' from cancel 'c')
+  while (Serial.available() > 0) {
+    Serial.read();
+  }
   Serial.println("\n--- Set Target Tensions ---");
-  
+  // Motor 1 target
   Serial.print("Enter target tension for Motor 1 (units): ");
-  while (!Serial.available()) {} // Wait for input
+  while (!Serial.available()) {
+    // wait until user types something
+  }
   targetTension1 = Serial.parseFloat();
-  while (Serial.available()) Serial.read(); // Clear buffer
+  // clear the buffer after reading
+  while (Serial.available() > 0) {
+    Serial.read();
+  }
   Serial.println(targetTension1, 2);
-  
+  // Motor 2 target
   Serial.print("Enter target tension for Motor 2 (units): ");
-  while (!Serial.available()) {} // Wait for input
+  while (!Serial.available()) {
+    // wait until user types something
+  }
   targetTension2 = Serial.parseFloat();
-  while (Serial.available()) Serial.read(); // Clear buffer
+  // clear the buffer after reading
+  while (Serial.available() > 0) {
+    Serial.read();
+  }
   Serial.println(targetTension2, 2);
-  
   Serial.println("Targets set. Starting tension control...\n");
 }
 
 // Adjust microsteps based on distance from target (expanded proportional control)
 void adjustMicrosteps(int motorNum, float error) {
   int microsteps;
-  
   // Expanded proportional control: larger error = coarser steps (faster)
-  if (error > 3.0) {
-    microsteps = 2;    // Coarsest steps when very far from target
-  } else if (error > 1.5) {
-    microsteps = 4;    // Coarse steps
+  if (error > 1.5) {
+    microsteps = 8;    // Coarse steps steps when very far from target
   } else if (error > 0.75) {
-    microsteps = 8;    // Medium-coarse steps
+    microsteps = 16;    // Medium-coarse steps
   } else if (error > 0.4) {
-    microsteps = 16;   // Medium steps
+    microsteps = 32;   // Medium steps
   } else if (error > 0.2) {
-    microsteps = 32;   // Medium-fine steps
+    microsteps = 64;   // Medium-fine steps
   } else if (error > 0.1) {
-    microsteps = 64;   // Fine steps
+    microsteps = 128;   // Fine steps
   } else if (error > 0.05) {
-    microsteps = 128;  // Very fine steps
+    microsteps = 256;  // Very fine steps
   } else {
     microsteps = 256;  // Finest steps when very close to target
   }
@@ -210,11 +216,11 @@ void adjustMicrosteps(int motorNum, float error) {
 
 // Step a single motor
 void stepMotor(int motorNum, bool forward) {
+  // digitalWrite(dirPin, LOW) is winding in
   int stepPin = (motorNum == 1) ? MOTOR1_STEP_PIN : MOTOR2_STEP_PIN;
   int dirPin = (motorNum == 1) ? MOTOR1_DIR_PIN : MOTOR2_DIR_PIN;
   
-  digitalWrite(dirPin, forward ? HIGH : LOW);
-  
+  digitalWrite(dirPin, forward ? LOW : HIGH);
   // Single step
   digitalWrite(stepPin, HIGH);
   delayMicroseconds(2);
