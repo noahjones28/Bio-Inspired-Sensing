@@ -5,9 +5,9 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
     uncertainties_vector = [5e-3, 5e-3, 5e-3, 5e-2, 5e-2, 5e-2]; % Set uncertianties for [Tx,Ty,Tz,Fx,Fy,Fz]
     lb = [0.05, 0.01, -pi/2, -pi]; % Lower bounds for [F,s,el,az]
     ub = [1, 0.2, pi/2, pi]; % Upper bounds for [F,s,el,az]
-    N_limit = 2; % Limit on how many loads to check for
+    N_limit = 1; % Limit on how many loads to check for
     plot_residual = true; % enable or disable the live plot
-    plot_force = true; % enable or disable the live plot
+    plot_force = false; % enable or disable the live plot
     uncertainty = false;
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];

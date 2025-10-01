@@ -1,8 +1,8 @@
-function positions = plot_robot(S, q, distal_values, force_vectors, doPlot, fig_handle)
-    if nargin < 5 % if doPlot was not provided
+function positions = plot_robot(S, q, distal_values, force_vectors, force_idxs, doPlot, fig_handle)
+    if nargin < 6 % if doPlot was not provided
         doPlot = false; % default
     end
-    if nargin < 6 % if fig_handle was not provided
+    if nargin < 7 % if fig_handle was not provided
         fig_handle = false; % default
     end
     if doPlot && ishandle(fig_handle)
@@ -20,14 +20,17 @@ function positions = plot_robot(S, q, distal_values, force_vectors, doPlot, fig_
     ylabel('Z (m)');
     zlabel('X: Position along backbone (m)');
     title('Deflected Robot Shape in 3D + Applied Forces');
-    view(135, 45);       % oblique: az=40°, el=25° (slightly elevated)
+    view(225, 45);       % oblique: az=40°, el=25° (slightly elevated)
     rotate3d on;        % enable mouse rotation
     grid on;
     axis equal;
     
     % Extract positions
+    num_divs = S.VLinks(2).npie-1; % number of divisions
+    quadpoints = S.CVRods{2}(2).Xs; % get quadpoints of just first div (each div has same quadpoints) 
+    quadpoints_per_div = length(quadpoints);
     num_quadpoints_total = S.nsig;
-    num_quadpoints_link = S.CVRods{2}(2).nip;
+    num_quadpoints_link = quadpoints_per_div*num_divs;
     num_forces = size(distal_values, 1);
     
     % Get transformation matrices at all points
@@ -37,12 +40,13 @@ function positions = plot_robot(S, q, distal_values, force_vectors, doPlot, fig_
     position = g_col4(1:3, :); % extarct xyz position from each matrix
 
     % Preallocate result
-    force_vectors_rotated = zeros(3, 100);
+    force_vectors_rotated = zeros(size(force_vectors,1), size(force_vectors,2));
 
     % Method 1: Loop through each vector/matrix pair
-    for i = 1:num_quadpoints_link
+    for i = 1:length(force_idxs)
+        idx = force_idxs(i);
         % Extract the i-th transformation matrix
-        T = g_link((i-1)*4+1:i*4, :);  % 4x4 matrix
+        T = g_link((idx-1)*4+1:idx*4, :);  % 4x4 matrix
         
         % Extract the 3x3 rotation part (no scale present)
         R = T(1:3, 1:3);
@@ -63,27 +67,30 @@ function positions = plot_robot(S, q, distal_values, force_vectors, doPlot, fig_
     % Plot deflected backbone
     plot3(position(2,:), position(3,:), position(1,:), 'b.-', 'LineWidth', 2, 'MarkerSize', 8);
     
+    % Get backbone positions of the forces
+    force_positions = position(:,force_idxs);
+
     % If any element in force_vectors is non-zero
     if any(force_vectors(:) ~= 0)
         % --- Plot the tips of force vectors ---
         % Calculate tip positions (starting from points on x-axis)
-        force_scaler = 1.0;  % Scale factor for visualization
-        tip_x = position(1,:) - force_scaler * force_vectors_rotated(1,:);
-        tip_y = position(2,:) - force_scaler * force_vectors_rotated(2,:);
-        tip_z = position(3,:) - force_scaler * force_vectors_rotated(3,:);
+        force_scaler = 0.5;  % Scale factor for visualization
+        tip_x = force_positions(1,:) - force_scaler * force_vectors_rotated(1,:);
+        tip_y = force_positions(2,:) - force_scaler * force_vectors_rotated(2,:);
+        tip_z = force_positions(3,:) - force_scaler * force_vectors_rotated(3,:);
         
         % Plot the line connecting all tips
         plot3(tip_y, tip_z, tip_x, 'k-', 'LineWidth', 1);
 
         % Shade the region between curve and x-axis
-        surf([position(2,:); tip_y], [position(3,:); tip_z], [position(1,:); tip_x], ...
+        surf([force_positions(2,:); tip_y], [force_positions(3,:); tip_z], [force_positions(1,:); tip_x], ...
              'FaceColor', 'm', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
 
         % Find and plot the largest vector (with flipped head)
         [~, max_idx] = max(vecnorm(force_vectors_rotated));
-        quiver3(position(2,max_idx) - force_scaler * force_vectors_rotated(2,max_idx), ...
-                position(3,max_idx) - force_scaler * force_vectors_rotated(3,max_idx), ...
-                position(1,max_idx) - force_scaler * force_vectors_rotated(1,max_idx), ...
+        quiver3(force_positions(2,max_idx) - force_scaler * force_vectors_rotated(2,max_idx), ...
+                force_positions(3,max_idx) - force_scaler * force_vectors_rotated(3,max_idx), ...
+                force_positions(1,max_idx) - force_scaler * force_vectors_rotated(1,max_idx), ...
                 force_vectors_rotated(2,max_idx), ...
                 force_vectors_rotated(3,max_idx), ...
                 force_vectors_rotated(1,max_idx), ...
