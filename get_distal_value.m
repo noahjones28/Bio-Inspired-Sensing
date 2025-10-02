@@ -5,9 +5,10 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
     uncertainties_vector = [5e-3, 5e-3, 5e-3, 5e-2, 5e-2, 5e-2]; % Set uncertianties for [Tx,Ty,Tz,Fx,Fy,Fz]
     lb = [0.05, 0.01, -pi/2, -pi]; % Lower bounds for [F,s,el,az]
     ub = [1, 0.2, pi/2, pi]; % Upper bounds for [F,s,el,az]
-    N_limit = 1; % Limit on how many loads to check for
+    N_limit = 2; % Limit on how many loads to check for
+    N_start = 2; % number of loads to start checking for  
     plot_residual = true; % enable or disable the live plot
-    plot_force = false; % enable or disable the live plot
+    plot_force = true; % enable or disable the live plot
     uncertainty = false;
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];
@@ -35,7 +36,7 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
     end
     
     % Optimization start
-    for N = 1:N_limit
+    for N = N_start:N_limit
         fprintf('\n=== Optimizing with N = %d forces ===\n', N);
         
         % Initialize plotting variables
@@ -118,9 +119,10 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
 
     function [x_final, f_final] = multi_force_optimization()
         % Finds [F1, s1, el1, F2, s2, el2] for two point forces
+        
       
-        lb = repmat([lb(1:2), 0], 1, N); % lower bound [F1,s1,el1,F2,s2,el2...]
-        ub = repmat([ub(1:2), 2*pi], 1, N); % upper bound [F1,s1,el1,F2,s2,el2...]
+        lb = [0.1, 0.1, pi/2, 0.1, 0.02, pi]; % lower bound [F1,s1,el1,F2,s2,el2...]
+        ub = [1, 0.2, 3*pi/2, 1, 0.08, 3*pi/2]; % upper bound [F1,s1,el1,F2,s2,el2...]
         
         % Initial guess
         jitter_frac = 5e-1;

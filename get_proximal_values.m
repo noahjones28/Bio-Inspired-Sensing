@@ -5,17 +5,31 @@ function proximal_values = get_proximal_values(distal_values)
         delete(localCluster.Jobs)
         parpool(localCluster)
     end
-    
-    tau_arrays = distal_values(:, 5:end); % [tau1, tau2, tau3]
-    distal_values = distal_values(:, 1:4); % [F, s, el, az]
+   
+    % Get number of rows
+    numRows = size(distal_values, 1);
+    % Preallocate cell array
+    distal_values_cell = cell(numRows, 1);
+    % Loop through each row of the array
+    if size(distal_values,2) == 7
+        for i = 1:numRows
+            distal_values_cell{i} = distal_values(:, 1:4); % [F, s, el, az]
+        end
+        tau_arrays = distal_values(:, 5:end); % [tau1, tau2, tau3]
+    elseif size(distal_values,2) == 11
+        for i = 1:numRows
+            distal_values_cell{i} = [distal_values(i, 1:4); distal_values(i, 5:8)]; % [F1, s1, el1, az1;F2, s2, el2, az2]
+        end
+        tau_arrays = distal_values(:, 9:end); % [tau1, tau2, tau3]
+    end
     
     % Initialize futures array
-    num_samples = size(distal_values, 1);
+    num_samples = numel(distal_values_cell);
     futures(1:num_samples) = parallel.FevalFuture;
     
     % Loop through all rows
     for index = 1:num_samples
-        distal_value = distal_values(index, :);  % Pass entire row
+        distal_value = distal_values_cell{index};  % Pass entire row
         tau_array = tau_arrays(index, :);
         futures(index) = parfeval(@get_proximal_value, 1, distal_value, tau_array);
     end

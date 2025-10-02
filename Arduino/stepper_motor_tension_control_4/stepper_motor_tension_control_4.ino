@@ -299,13 +299,13 @@ void adjustMicrosteps(int motorNum, float error) {
     } else if (error > 0.4) {
       microsteps = 2;   // Medium steps
     } else if (error > 0.2) {
-      microsteps = 2;   // Medium-fine steps
+      microsteps = 8;   // Medium-fine steps
     } else if (error > 0.1) {
-      microsteps = 2;   // Fine steps
+      microsteps = 32;   // Fine steps
     } else if (error > 0.05) {
-      microsteps = 2;  // Very fine steps
+      microsteps = 128;  // Very fine steps
     } else {
-      microsteps = 2;  // Finest steps when very close to target
+      microsteps = 256;  // Finest steps when very close to target
     }
   }
 

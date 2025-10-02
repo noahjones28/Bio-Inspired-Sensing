@@ -1,4 +1,4 @@
-function distal_values = get_distal_values(proximal_values)
+function distal_values = get_distal_values(proximal_values, N)
     % Create a parallel pool if one isn't already open
     if isempty(gcp('nocreate'))
         localCluster = parcluster('Noah12');
@@ -21,15 +21,26 @@ function distal_values = get_distal_values(proximal_values)
         futures(index) = parfeval(@get_distal_value, 1, proximal_value, tau_array);
     end
     
-    % Initialize results as num_samplesx4 matrix
-    distal_values = zeros(num_samples, 4);
+    % Initialize distal_values based on N
+    if N == 1
+        % Initialize results as num_samples x 4 matrix
+        distal_values = zeros(num_samples, 4);
+    elseif N == 2
+        % Initialize as num_samples x 8 matrix (2 rows of 4 stacked horizontally)
+        distal_values = zeros(num_samples, 8);
+    end
     
     % Fetch outputs for all futures
     fprintf('Processing %d samples...\n', num_samples);
     for i = 1:length(futures)
         try
-            result = fetchOutputs(futures(i)); % This is 1x5
-            distal_values(i, :) = result; % <-- Store as row i
+            result = fetchOutputs(futures(i)); 
+            if N == 1
+                distal_values(i, :) = result; % Store as row i in matrix
+            elseif N == 2
+                % result is 2x4, reshape to 1x8 by concatenating rows horizontally
+                distal_values(i, :) = [result(1, :), result(2, :)];
+            end
             fprintf('Completed %d/%d\n', i, num_samples);
         catch ME
             fprintf('Error processing row %d: %s\n', i, ME.message);
