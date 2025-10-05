@@ -8,7 +8,7 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
     N_limit = 2; % Limit on how many loads to check for
     N_start = 2; % number of loads to start checking for  
     plot_residual = true; % enable or disable the live plot
-    plot_force = true; % enable or disable the live plot
+    plot_force = false; % enable or disable the live plot
     uncertainty = false;
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];
@@ -121,8 +121,8 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
         % Finds [F1, s1, el1, F2, s2, el2] for two point forces
         
       
-        lb = [0.1, 0.1, pi/2, 0.1, 0.02, pi]; % lower bound [F1,s1,el1,F2,s2,el2...]
-        ub = [1, 0.2, 3*pi/2, 1, 0.08, 3*pi/2]; % upper bound [F1,s1,el1,F2,s2,el2...]
+        lb = [0.1, 0.02, 0, 0.1, 0.02, 0]; % lower bound [F1,s1,el1,F2,s2,el2...]
+        ub = [1, 0.2, 2*pi, 1, 0.2, 2*pi]; % upper bound [F1,s1,el1,F2,s2,el2...]
         
         % Initial guess
         jitter_frac = 5e-1;
@@ -161,6 +161,9 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
         % Reshape x_final to [F1, s1, el1, az1; F2, s2, el2, az2]
         x_final = reshape(x_final,3,N)';  % makes it Nx3
         x_final = [x_final, repmat(pi/2, N, 1)];
+        % Sort forces based on s column (descending order)
+        [~, idx] = sort(x_final(:,2), 'descend');
+        x_final = x_final(idx, :);
         fprintf('Multi force optimization complete!\n')
         fprintf('Objective func = %.6e\n',f_final);
         fprintf('x =\n');

@@ -1,4 +1,4 @@
-function [proximal_value, u] = get_proximal_value(distal_values, tau_array, doPlot, fig_handle, S1)
+function proximal_value = get_proximal_value(distal_values, tau_array, doPlot, fig_handle, S1)
     % distal_values [F, s, el, az]
     % tau_array [tau1, tau2, tau3]
     
@@ -17,6 +17,10 @@ function [proximal_value, u] = get_proximal_value(distal_values, tau_array, doPl
     
     % ALWAYS make tau negative for pulling tendons (push is positive)
     tau_array = -1*abs(tau_array);
+
+    % Sort distal_values based on s column (descending order)
+    [~, idx] = sort(distal_values(:,2), 'descend');
+    distal_values = distal_values(idx, :);
 
     % Apply multiple Gaussian forces
     [S1, force_vectors, force_idxs] = apply_gaussian_force(S1, distal_values);
@@ -37,11 +41,10 @@ function [proximal_value, u] = get_proximal_value(distal_values, tau_array, doPl
     %Statics simulation
     [q,u,lambda] = S1.statics(x0,action,'plotResult',false,'Display','off');
 
-    % Plot robot
     if doPlot
-        plot_robot(S1, q, distal_values, force_vectors, force_idxs, doPlot, fig_handle);
+        plot_robot(S1, q, distal_values, tau_array, force_vectors, force_idxs, doPlot, fig_handle);
     end
-    
+
     % Flip sign of u becuase we want force on robot not on joint  
     Tx = -u(1);
     Ty = -u(2);

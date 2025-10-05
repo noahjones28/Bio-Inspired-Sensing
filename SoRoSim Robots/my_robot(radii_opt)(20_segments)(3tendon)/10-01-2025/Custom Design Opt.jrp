@@ -1,0 +1,490 @@
+﻿Local Here(
+	(table1 = New Table( "Sort of Custom Design by el1, s1, el2, s2, F2, F1, tau1",
+		Add Rows( 40 ),
+		New Table Variable( "Design", "Custom Design" ),
+		New Table Variable( "Criterion", "I Optimal" ),
+		New Script(
+			"Source",
+			Data Table( "Custom Design" ) << Sort(
+				By( :el1, :s1, :el2, :s2, :F2, :F1, :tau1 ),
+				Order(
+					Ascending, Ascending, Ascending, Ascending, Ascending, Ascending,
+					Ascending
+				),
+				Output Table(
+					"Sort of Custom Design by el1, s1, el2, s2, F2, F1, tau1"
+				)
+			)
+		),
+		New Script(
+			"Model",
+			Fit Model(
+				Effects(
+					:F1, :F1 * :F1, :s1, :s1 * :s1, :el1, :el1 * :el1, :F2,
+					:F2 * :F2, :s2, :s2 * :s2, :el2, :el2 * :el2, :tau1,
+					:tau1 * :tau1, :F1 * :s1, :F1 * :el1, :s1 * :el1, :F1 * :F2,
+					:s1 * :F2, :el1 * :F2, :F1 * :s2, :s1 * :s2, :el1 * :s2,
+					:F2 * :s2, :F1 * :el2, :s1 * :el2, :el1 * :el2, :F2 * :el2,
+					:s2 * :el2, :F1 * :tau1, :s1 * :tau1, :el1 * :tau1, :F2 * :tau1,
+					:s2 * :tau1, :el2 * :tau1
+				),
+				Y( :Force_Error, :Position_Error, :Angle_Error )
+			)
+		),
+		New Script(
+			"Evaluate Design",
+			DOE( Evaluate Design, X( :F1, :s1, :el1, :F2, :s2, :el2, :tau1 ) )
+		),
+		New Script(
+			"Generalized Regression",
+			Fit Model(
+				Y( :Force_Error, :Position_Error, :Angle_Error ),
+				Effects(
+					:F1, :F1 * :F1, :s1, :s1 * :s1, :el1, :el1 * :el1, :F2,
+					:F2 * :F2, :s2, :s2 * :s2, :el2, :el2 * :el2, :tau1,
+					:tau1 * :tau1, :F1 * :s1, :F1 * :el1, :s1 * :el1, :F1 * :F2,
+					:s1 * :F2, :el1 * :F2, :F1 * :s2, :s1 * :s2, :el1 * :s2,
+					:F2 * :s2, :F1 * :el2, :s1 * :el2, :el1 * :el2, :F2 * :el2,
+					:s2 * :el2, :F1 * :tau1, :s1 * :tau1, :el1 * :tau1, :F2 * :tau1,
+					:s2 * :tau1, :el2 * :tau1
+				),
+				Personality( Generalized Regression ),
+				Generalized Distribution( Normal ),
+				Run(
+					Fit(
+						Estimation Method(
+							Forward Selection(
+								Initial Displayed Solution( Biggest in Green Zone )
+							)
+						),
+						Validation Method( AICc ),
+						Enforce Heredity
+					)
+				)
+			)
+		),
+		New Script(
+			"DOE Dialog",
+			DOE(
+				Custom Design,
+				{Add Response( Minimize, "Force_Error", ., ., . ),
+				Add Response( Minimize, "Position_Error", ., ., . ),
+				Add Response( Minimize, "Angle_Error", ., ., . ),
+				Add Factor(
+					Discrete Numeric,
+					{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1},
+					"F1",
+					0
+				), Add Factor(
+					Discrete Numeric,
+					{0.1, 0.12, 0.14, 0.16, 0.18, 0.2},
+					"s1",
+					0
+				), Add Factor(
+					Discrete Numeric,
+					{1.571, 2.356, 3.142, 3.927, 4.712},
+					"el1",
+					0
+				), Add Factor(
+					Discrete Numeric,
+					{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1},
+					"F2",
+					0
+				), Add Factor( Discrete Numeric, {0.02, 0.04, 0.06, 0.08}, "s2", 0 ),
+				Add Factor( Discrete Numeric, {3.142, 3.927, 4.712}, "el2", 0 ),
+				Add Factor(
+					Discrete Numeric,
+					{0, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4},
+					"tau1",
+					0
+				), Set Random Seed( 2062562517 ), Number of Starts( 231 ),
+				Add Term( {1, 0} ), Add Term( {1, 1} ), Add Potential Term( {1, 2} ),
+				Add Potential Term( {1, 3} ), Add Potential Term( {1, 4} ),
+				Add Potential Term( {1, 5} ), Add Term( {2, 1} ),
+				Add Potential Term( {2, 2} ), Add Potential Term( {2, 3} ),
+				Add Potential Term( {2, 4} ), Add Potential Term( {2, 5} ),
+				Add Term( {3, 1} ), Add Potential Term( {3, 2} ),
+				Add Potential Term( {3, 3} ), Add Potential Term( {3, 4} ),
+				Add Term( {4, 1} ), Add Potential Term( {4, 2} ),
+				Add Potential Term( {4, 3} ), Add Potential Term( {4, 4} ),
+				Add Potential Term( {4, 5} ), Add Term( {5, 1} ),
+				Add Potential Term( {5, 2} ), Add Potential Term( {5, 3} ),
+				Add Term( {6, 1} ), Add Potential Term( {6, 2} ), Add Term( {7, 1} ),
+				Add Potential Term( {7, 2} ), Add Potential Term( {7, 3} ),
+				Add Potential Term( {7, 4} ), Add Potential Term( {7, 5} ),
+				Add Term( {1, 1}, {2, 1} ), Add Term( {1, 1}, {3, 1} ),
+				Add Term( {2, 1}, {3, 1} ), Add Term( {1, 1}, {4, 1} ),
+				Add Term( {2, 1}, {4, 1} ), Add Term( {3, 1}, {4, 1} ),
+				Add Term( {1, 1}, {5, 1} ), Add Term( {2, 1}, {5, 1} ),
+				Add Term( {3, 1}, {5, 1} ), Add Term( {4, 1}, {5, 1} ),
+				Add Term( {1, 1}, {6, 1} ), Add Term( {2, 1}, {6, 1} ),
+				Add Term( {3, 1}, {6, 1} ), Add Term( {4, 1}, {6, 1} ),
+				Add Term( {5, 1}, {6, 1} ), Add Term( {1, 1}, {7, 1} ),
+				Add Term( {2, 1}, {7, 1} ), Add Term( {3, 1}, {7, 1} ),
+				Add Term( {4, 1}, {7, 1} ), Add Term( {5, 1}, {7, 1} ),
+				Add Term( {6, 1}, {7, 1} ), Set Sample Size( 40 ),
+				Optimality Criterion( "Make I-Optimal Design" ),
+				Simulate Responses( 0 ), Save X Matrix( 0 ), Make Design}
+			)
+		),
+		New Column( "F1",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property( "Coding", {0.1, 1} ),
+			Set Property( "Design Role", DesignRole( Discrete Numeric ) ),
+			Set Property( "Factor Changes", Easy ),
+			Set Values(
+				[0.2, 1, 0.5, 0.9, 0.1, 0.8, 0.1, 0.9, 0.3, 0.9, 0.1, 0.9, 0.9, 0.4,
+				1, 0.4, 0.1, 0.9, 0.1, 0.1, 0.9, 0.2, 0.6, 0.7, 0.1, 1, 0.7, 1, 0.1,
+				0.3, 1, 0.1, 0.9, 1, 0.3, 0.9, 0.1, 0.8, 1, 0.2]
+			),
+			Set Display Width( 48 )
+		),
+		New Column( "s1",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property( "Coding", {0.1, 0.2} ),
+			Set Property( "Design Role", DesignRole( Discrete Numeric ) ),
+			Set Property( "Factor Changes", Easy ),
+			Set Values(
+				[0.1, 0.1, 0.1, 0.1, 0.12, 0.16, 0.18, 0.18, 0.18, 0.2, 0.2, 0.2,
+				0.1, 0.12, 0.14, 0.18, 0.18, 0.2, 0.1, 0.2, 0.1, 0.12, 0.12, 0.16,
+				0.18, 0.18, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1, 0.12, 0.12, 0.18, 0.18,
+				0.18, 0.18, 0.2, 0.2]
+			),
+			Set Display Width( 48 )
+		),
+		New Column( "el1",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property( "Coding", {1.571, 4.712} ),
+			Set Property( "Design Role", DesignRole( Discrete Numeric ) ),
+			Set Property( "Factor Changes", Easy ),
+			Set Values(
+				[1.571, 1.571, 1.571, 1.571, 1.571, 1.571, 1.571, 1.571, 1.571,
+				1.571, 1.571, 1.571, 2.356, 2.356, 2.356, 2.356, 2.356, 2.356, 3.142,
+				3.142, 3.927, 3.927, 3.927, 3.927, 3.927, 3.927, 3.927, 3.927, 4.712,
+				4.712, 4.712, 4.712, 4.712, 4.712, 4.712, 4.712, 4.712, 4.712, 4.712,
+				4.712]
+			),
+			Set Display Width( 48 )
+		),
+		New Column( "F2",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property( "Coding", {0.1, 1} ),
+			Set Property( "Design Role", DesignRole( Discrete Numeric ) ),
+			Set Property( "Factor Changes", Easy ),
+			Set Values(
+				[1, 1, 0.2, 0.2, 1, 0.8, 0.1, 0.1, 0.9, 1, 0.3, 0.3, 0.9, 0.1, 0.4,
+				0.7, 0.2, 0.3, 0.3, 0.8, 0.2, 0.2, 0.5, 1, 0.9, 0.1, 0.2, 1, 0.2,
+				0.8, 0.1, 1, 0.9, 0.8, 0.3, 0.2, 1, 0.6, 0.8, 0.1]
+			),
+			Set Display Width( 48 )
+		),
+		New Column( "s2",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property( "Coding", {0.02, 0.08} ),
+			Set Property( "Design Role", DesignRole( Discrete Numeric ) ),
+			Set Property( "Factor Changes", Easy ),
+			Set Values(
+				[0.04, 0.08, 0.02, 0.08, 0.06, 0.06, 0.02, 0.08, 0.08, 0.02, 0.08,
+				0.02, 0.02, 0.06, 0.04, 0.04, 0.06, 0.06, 0.08, 0.02, 0.02, 0.02,
+				0.08, 0.04, 0.08, 0.08, 0.02, 0.06, 0.02, 0.04, 0.04, 0.08, 0.02,
+				0.08, 0.06, 0.08, 0.02, 0.06, 0.02, 0.08]
+			),
+			Set Display Width( 48 )
+		),
+		New Column( "el2",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property( "Coding", {3.142, 4.712} ),
+			Set Property( "Design Role", DesignRole( Discrete Numeric ) ),
+			Set Property( "Factor Changes", Easy ),
+			Set Values(
+				[3.142, 3.142, 3.927, 4.712, 3.927, 3.927, 3.142, 4.712, 4.712,
+				3.142, 3.142, 4.712, 4.712, 3.142, 3.927, 3.142, 4.712, 3.142, 3.927,
+				3.927, 3.142, 4.712, 4.712, 3.927, 3.142, 4.712, 3.927, 3.927, 3.142,
+				3.927, 4.712, 4.712, 3.142, 3.142, 3.142, 3.142, 4.712, 4.712, 3.142,
+				3.927]
+			),
+			Set Display Width( 48 )
+		),
+		New Column( "tau1",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property( "Coding", {0, 1.4} ),
+			Set Property( "Design Role", DesignRole( Discrete Numeric ) ),
+			Set Property( "Factor Changes", Easy ),
+			Set Values(
+				[1.4, 0, 0, 1.2, 0, 1.4, 1.2, 0, 1, 0.4, 0.2, 1.4, 0.4, 0.4, 0.6, 0,
+				0.4, 1.2, 1.2, 1.2, 1.4, 1.2, 0.2, 1.2, 0.6, 1.4, 0.4, 0.2, 0, 0.4,
+				0, 1.4, 0, 1.2, 1.4, 0.2, 0, 1, 1.4, 0]
+			),
+			Set Display Width( 48 )
+		),
+		New Column( "Force_Error",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property(
+				"Response Limits",
+				{Goal( Minimize ), Lower( . ), Upper( . ), Importance( . )}
+			),
+			Set Values(
+				[0.2141, 0.059, 0.03845, 0.0946, 0.1794, 0.18655, 0.05255, 0.018,
+				0.23425, 0.03145, 0.0847, 0.0893, 0.27775, 0.03775, 0.0837, 0.1043,
+				0.0699, 0.0507, 0.04205, 0.0158, 0.48385, 0.0516, 0.02455, 0.13775,
+				0.4325, 0.0043, 0.05305, 0.0475, 0.03035, 0.05465, 0.7948, 0.22885,
+				0.0176, 0.1176, 0.07735, 0.03655, 0.01075, 0.14065, 0.02155, 0.12355
+				]
+			),
+			Set Display Width( 82 )
+		),
+		New Column( "Position_Error",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property(
+				"Response Limits",
+				{Goal( Minimize ), Lower( . ), Upper( . ), Importance( . )}
+			),
+			Set Selected,
+			Set Values(
+				[0.01445, 0.0136, 0.02045, 0.01225, 0.0148, 0.02695, 0.00585,
+				0.02455, 0.06385, 0, 0.0654, 0.00535, 0, 0.01985, 0.0264, 0.0143,
+				0.0196, 0.01, 0.00065, 0.05, 0.03265, 0.02305, 0.0249, 0.0465,
+				0.0553, 0.00025, 0.01295, 0.01705, 0.0031, 0.0007, 0.0192, 0.02975,
+				0.01135, 0.0194, 0.01375, 0.0084, 0.04165, 0.019, 0.0056, 0.05]
+			),
+			Set Display Width( 89 )
+		),
+		New Column( "Angle_Error",
+			Numeric,
+			"Continuous",
+			Format( "Best", 12 ),
+			Set Property(
+				"Response Limits",
+				{Goal( Minimize ), Lower( . ), Upper( . ), Importance( . )}
+			),
+			Set Values(
+				[0.50285, 0.00265, 0.1433, 0.00025, 0.8658, 0.18465, 0.1301, 0.0003,
+				1.56525, 0.08885, 0.84935, 0.00025, 0.2247, 0.18255, 0.37415,
+				0.13905, 0.2314, 0.1709, 0.45745, 0.2501, 0.22435, 0.1187, 0.2163,
+				0.2078, 0.3389, 0.0394, 0.05505, 0.1185, 1.1784, 0.21985, 0.0004,
+				0.0004, 0.1465, 0.3873, 0.5904, 0.2094, 0.00805, 0.0847, 0.0444,
+				1.71375]
+			),
+			Set Display Width( 82 )
+		),
+		Set Row States(
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+		)
+	)) << Run Formulas;
+	table1 << Fit Model(
+		Y( :Force_Error, :Position_Error, :Angle_Error ),
+		Effects(
+			:F1, :F1 * :F1, :s1, :s1 * :s1, :el1, :el1 * :el1, :F2, :F2 * :F2, :s2,
+			:s2 * :s2, :el2, :el2 * :el2, :tau1, :tau1 * :tau1, :F1 * :s1,
+			:F1 * :el1, :s1 * :el1, :F1 * :F2, :s1 * :F2, :el1 * :F2, :F1 * :s2,
+			:s1 * :s2, :el1 * :s2, :F2 * :s2, :F1 * :el2, :s1 * :el2, :el1 * :el2,
+			:F2 * :el2, :s2 * :el2, :F1 * :tau1, :s1 * :tau1, :el1 * :tau1,
+			:F2 * :tau1, :s2 * :tau1, :el2 * :tau1
+		),
+		Personality( "Standard Least Squares" ),
+		Emphasis( "Effect Screening" ),
+		Run(
+			:Force_Error << {Summary of Fit( 0 ), Analysis of Variance( 0 ),
+			Parameter Estimates( 1 ), Effect Details( 0 ), Lack of Fit( 0 ),
+			Sorted Estimates( 0 ), Plot Actual by Predicted( 1 ),
+			Plot Regression( 0 ), Plot Residual by Predicted( 1 ),
+			Plot Studentized Residuals( 1 ), Plot Effect Leverage( 0 ),
+			Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 1 )},
+			:Position_Error << {Summary of Fit( 0 ), Analysis of Variance( 0 ),
+			Parameter Estimates( 1 ), Effect Details( 0 ), Lack of Fit( 0 ),
+			Sorted Estimates( 0 ), Plot Actual by Predicted( 1 ),
+			Plot Regression( 0 ), Plot Residual by Predicted( 1 ),
+			Plot Studentized Residuals( 1 ), Plot Effect Leverage( 0 ),
+			Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 0 )},
+			:Angle_Error << {Summary of Fit( 0 ), Analysis of Variance( 0 ),
+			Parameter Estimates( 1 ), Effect Details( 0 ), Lack of Fit( 0 ),
+			Sorted Estimates( 0 ), Plot Actual by Predicted( 1 ),
+			Plot Regression( 0 ), Plot Residual by Predicted( 1 ),
+			Plot Studentized Residuals( 1 ), Plot Effect Leverage( 0 ),
+			Plot Residual by Normal Quantiles( 0 ), Box Cox Y Transformation( 1 )},
+			Profiler(
+				1,
+				Confidence Intervals( 1 ),
+				Desirability Functions( 1 ),
+				Arrange in Rows( 4 ),
+				Term Value(
+					:F1( 0.1, Lock( 0 ), Show( 1 ) ),
+					:s1( 0.1, Lock( 0 ), Show( 1 ) ),
+					:el1( 1.571, Lock( 0 ), Show( 1 ) ),
+					:F2( 0.1, Lock( 0 ), Show( 1 ) ),
+					:s2( 0.02, Lock( 0 ), Show( 1 ) ),
+					:el2( 3.142, Lock( 0 ), Show( 1 ) ),
+					:tau1( 0, Lock( 0 ), Show( 1 ) )
+				)
+			),
+			Surface Profiler(
+				1,
+				0 << {Resolution( 44.543 ), Z Grid Position( 0.4891 ),
+				Surface Color Theme( "Green to Black to Red" ),
+				Surface Color Theme2( "Green to White to Red" ),
+				Surface Color Theme3( "White to Black" ),
+				Surface Color Theme4( "Blue to Gray to Red" ),
+				Response Column Color Theme( "Blue to Green to Red" ),
+				Response Column Color Theme2( "Blue to Gray to Orange" ),
+				Response Column Color Theme3( "Spectral" ),
+				Response Column Color Theme4( "Jet" ),
+				Surface Color Method( "Solid", "Solid", "Solid", "Solid" ),
+				SetVariableAxis(
+					"F1(0.1,1)"n,
+					Current Value( 0.62842 ),
+					Axis Data(
+						{Min( 0.0991 ), Max( 1.0009 ), Inc( 0.2 ), Minor Ticks( 1 )}
+					)
+				), SetVariableAxis(
+					"s1(0.1,0.2)"n,
+					Current Value( 0.15 ),
+					Axis Data(
+						{Min( 0.0999 ), Max( 0.2001 ), Inc( 0.02 ), Minor Ticks( 1 )
+						}
+					)
+				), SetVariableAxis(
+					"el1(1.571,4.712)"n,
+					Current Value( 3.1415 ),
+					Axis Data(
+						{Min( 1.5 ), Max( 4.715141 ), Inc( 0.5 ), Minor Ticks( 0 )}
+					)
+				), SetVariableAxis(
+					"F2(0.1,1)"n,
+					Current Value( 0.55 ),
+					Axis Data(
+						{Min( 0.0991 ), Max( 1.0009 ), Inc( 0.2 ), Minor Ticks( 1 )}
+					)
+				), SetVariableAxis( "s2(0.02,0.08)"n, Current Value( 0.05 ) ),
+				SetVariableAxis( "el2(3.142,4.712)"n, Current Value( 3.927 ) ),
+				SetVariableAxis( "tau1(0,1.4)"n, Current Value( 0.7 ) ),
+				SetZAxis( :Force_Error, Current Value( 0.12173 ), Axis Data( {} ) ),
+				SetXVariable( "F1(0.1,1)"n ), SetYVariable( "s1(0.1,0.2)"n ),
+				Iso Value( 0, 0.059 ), Frame3D(
+					Set Hide Lights Border( 1 ),
+					Set Rotation(
+						-67.8557386213468, -4.84375467976331, 20.054960565945
+					)
+				), Term Value(
+					:F1( 0.62842, Min( 0.1 ), Max( 1 ) ),
+					:s1( 0.15, Min( 0.1 ), Max( 0.2 ) ),
+					:el1( 3.1415, Min( 1.571 ), Max( 4.712 ) ),
+					:F2( 0.55, Min( 0.1 ), Max( 1 ) ),
+					:s2( 0.05, Min( 0.02 ), Max( 0.08 ) ),
+					:el2( 3.927, Min( 3.142 ), Max( 4.712 ) ),
+					:tau1( 0.7, Min( 0 ), Max( 1.4 ) )
+				)},
+				1 << {Surface Color Theme( "Green to Black to Red" ),
+				Surface Color Theme2( "Green to White to Red" ),
+				Surface Color Theme3( "White to Black" ),
+				Surface Color Theme4( "Blue to Gray to Red" ),
+				Response Column Color Theme( "Blue to Green to Red" ),
+				Response Column Color Theme2( "Blue to Gray to Orange" ),
+				Response Column Color Theme3( "Spectral" ),
+				Response Column Color Theme4( "Jet" ),
+				Surface Color Method( "Solid", "Solid", "Solid", "Solid" ),
+				SetVariableAxis(
+					"F1(0.1,1)"n,
+					Current Value( 0.55 ),
+					Axis Data(
+						{Min( 0.0991 ), Max( 1.0009 ), Inc( 0.2 ), Minor Ticks( 1 )}
+					)
+				), SetVariableAxis(
+					"s1(0.1,0.2)"n,
+					Current Value( 0.15 ),
+					Axis Data(
+						{Min( 0.0999 ), Max( 0.2001 ), Inc( 0.02 ), Minor Ticks( 1 )
+						}
+					)
+				), SetVariableAxis( "el1(1.571,4.712)"n, Current Value( 3.1415 ) ),
+				SetVariableAxis( "F2(0.1,1)"n, Current Value( 0.55 ) ),
+				SetVariableAxis( "s2(0.02,0.08)"n, Current Value( 0.05 ) ),
+				SetVariableAxis( "el2(3.142,4.712)"n, Current Value( 3.927 ) ),
+				SetVariableAxis( "tau1(0,1.4)"n, Current Value( 0.7 ) ),
+				SetZAxis(
+					:Position_Error,
+					Current Value( 0.0187476775561403 ),
+					Axis Data( {} )
+				), SetXVariable( "F1(0.1,1)"n ), SetYVariable( "s1(0.1,0.2)"n ),
+				Iso Value( 0, 0.01705 ), Frame3D(
+					Set Hide Lights Border( 1 ),
+					Set Rotation( -54, -3.18055468146352e-15, 38 )
+				), Term Value(
+					:F1( 0.55, Min( 0.1 ), Max( 1 ) ),
+					:s1( 0.15, Min( 0.1 ), Max( 0.2 ) ),
+					:el1( 3.1415, Min( 1.571 ), Max( 4.712 ) ),
+					:F2( 0.55, Min( 0.1 ), Max( 1 ) ),
+					:s2( 0.05, Min( 0.02 ), Max( 0.08 ) ),
+					:el2( 3.927, Min( 3.142 ), Max( 4.712 ) ),
+					:tau1( 0.7, Min( 0 ), Max( 1.4 ) )
+				)},
+				2 << {Surface Color Theme( "Green to Black to Red" ),
+				Surface Color Theme2( "Green to White to Red" ),
+				Surface Color Theme3( "White to Black" ),
+				Surface Color Theme4( "Blue to Gray to Red" ),
+				Response Column Color Theme( "Blue to Green to Red" ),
+				Response Column Color Theme2( "Blue to Gray to Orange" ),
+				Response Column Color Theme3( "Spectral" ),
+				Response Column Color Theme4( "Jet" ),
+				Surface Color Method( "Solid", "Solid", "Solid", "Solid" ),
+				SetVariableAxis(
+					"F1(0.1,1)"n,
+					Current Value( 0.55 ),
+					Axis Data(
+						{Min( 0.0991 ), Max( 1.0009 ), Inc( 0.2 ), Minor Ticks( 1 )}
+					)
+				), SetVariableAxis(
+					"s1(0.1,0.2)"n,
+					Current Value( 0.15 ),
+					Axis Data(
+						{Min( 0.0999 ), Max( 0.2001 ), Inc( 0.02 ), Minor Ticks( 1 )
+						}
+					)
+				), SetVariableAxis( "el1(1.571,4.712)"n, Current Value( 3.1415 ) ),
+				SetVariableAxis( "F2(0.1,1)"n, Current Value( 0.55 ) ),
+				SetVariableAxis( "s2(0.02,0.08)"n, Current Value( 0.05 ) ),
+				SetVariableAxis( "el2(3.142,4.712)"n, Current Value( 3.927 ) ),
+				SetVariableAxis( "tau1(0,1.4)"n, Current Value( 0.7 ) ),
+				SetZAxis(
+					:Angle_Error,
+					Current Value( 0.37823398385186 ),
+					Axis Data( {} )
+				), SetXVariable( "F1(0.1,1)"n ), SetYVariable( "s1(0.1,0.2)"n ),
+				Iso Value( 0, 0.18255 ), Frame3D(
+					Set Hide Lights Border( 1 ),
+					Set Rotation( -54, 0, 38 )
+				), Term Value(
+					:F1( 0.55, Min( 0.1 ), Max( 1 ) ),
+					:s1( 0.15, Min( 0.1 ), Max( 0.2 ) ),
+					:el1( 3.1415, Min( 1.571 ), Max( 4.712 ) ),
+					:F2( 0.55, Min( 0.1 ), Max( 1 ) ),
+					:s2( 0.05, Min( 0.02 ), Max( 0.08 ) ),
+					:el2( 3.927, Min( 3.142 ), Max( 4.712 ) ),
+					:tau1( 0.7, Min( 0 ), Max( 1.4 ) )
+				)}
+			)
+		),
+		SendToReport(
+			Dispatch( {"Force_Error"}, "Appearance", OutlineBox, {Close( 0 )} ),
+			Dispatch( {"Position_Error"}, "Appearance", OutlineBox, {Close( 0 )} )
+		)
+	);
+)
