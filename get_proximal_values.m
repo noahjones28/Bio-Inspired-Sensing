@@ -13,7 +13,7 @@ function proximal_values = get_proximal_values(distal_values)
     % Loop through each row of the array
     if size(distal_values,2) == 7
         for i = 1:numRows
-            distal_values_cell{i} = distal_values(:, 1:4); % [F, s, el, az]
+            distal_values_cell{i} = distal_values(i, 1:4); % [F, s, el, az]
         end
         tau_arrays = distal_values(:, 5:end); % [tau1, tau2, tau3]
     elseif size(distal_values,2) == 11

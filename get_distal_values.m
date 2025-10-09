@@ -18,28 +18,28 @@ function distal_values = get_distal_values(proximal_values, N)
     for index = 1:num_samples
         proximal_value = proximal_values(index, :);  % Pass entire row
         tau_array = tau_arrays(index, :);
-        futures(index) = parfeval(@get_distal_value, 1, proximal_value, tau_array);
+        futures(index) = parfeval(@get_distal_value, 2, proximal_value, tau_array);
     end
     
     % Initialize distal_values based on N
     if N == 1
-        % Initialize results as num_samples x 4 matrix
-        distal_values = zeros(num_samples, 4);
+        % Initialize results as num_samples x 4 matrix + f_final
+        distal_values = zeros(num_samples, 5);
     elseif N == 2
         % Initialize as num_samples x 8 matrix (2 rows of 4 stacked horizontally)
-        distal_values = zeros(num_samples, 8);
+        distal_values = zeros(num_samples, 9);
     end
     
     % Fetch outputs for all futures
     fprintf('Processing %d samples...\n', num_samples);
     for i = 1:length(futures)
         try
-            result = fetchOutputs(futures(i)); 
+            [result1, result2] = fetchOutputs(futures(i));
             if N == 1
-                distal_values(i, :) = result; % Store as row i in matrix
+                distal_values(i, :) = [result1, result2]; % Store as row i in matrix
             elseif N == 2
                 % result is 2x4, reshape to 1x8 by concatenating rows horizontally
-                distal_values(i, :) = [result(1, :), result(2, :)];
+                distal_values(i, :) = [result1(1, :), result1(2, :), result2];
             end
             fprintf('Completed %d/%d\n', i, num_samples);
         catch ME

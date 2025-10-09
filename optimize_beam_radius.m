@@ -5,7 +5,7 @@ function [optimal_radius, results] = optimize_beam_radius(S1, varargin)
     % Parse inputs
     p = inputParser;
     addParameter(p, 'r_bounds', [0.001, 0.020], @(x) length(x)==2);
-    addParameter(p, 'n_samples', 100, @isnumeric);  % Number of LHS samples
+    addParameter(p, 'n_samples', 50, @isnumeric);  % Number of LHS samples
     addParameter(p, 'tau_array', [0, 0, 0], @isnumeric);
     parse(p, varargin{:});
     
@@ -17,7 +17,7 @@ function [optimal_radius, results] = optimize_beam_radius(S1, varargin)
     ub = 6e-3*ones(1,num_radii);
     % Initial guess
     %r0 = 1e-3*[4.81, 6.00, 6.00, 6.00, 3.04, 1.88, 2.63, 2.80, 2.78, 1.48, 3.09, 1.39, 1.25, 1.27, 1.25, 1.25, 1.46, 2.49, 3.65, 3.50];
-    r0 = 1.5e-3*ones(1,20);
+    r0 = linspace(5.5e-3, 1.75e-3, num_radii);
 
     % Generate samples ONCE at the beginning
     test_forces = generate_test_forces(p.Results.n_samples);
@@ -64,20 +64,39 @@ function [score, bounds] = compute_bilipschitz_score(r, S1, samples, n_samples, 
     s_min = [];  % Minimum singular values at each sample
     s_max = [];  % Maximum singular values at each sample
     jacobians = {};  % Store Jacobians for later
+    wrenches = zeros(n_samples,6); % Initalize wrench array
     
     for i = 1:n_samples
         % Compute Jacobian using forward finite differences
         f = @(x) get_proximal_value(x, [0,0,0], false, false, S1);
-        J = jacobian_forward_fd(f, samples{i});
-        % Remove Tx row (not important)
-        J = J(2:end,:);
-        
-        svd_vals = svd(J);
-        s_min(end+1) = min(svd_vals);
-        s_max(end+1) = max(svd_vals);
-        jacobians{end+1} = J;
+        y0 = f(samples{i});
+        % [J, y0] = jacobian_forward_fd(f, samples{i});
+        % % Remove Tx row (not important)
+        % J = J(2:end,:);
+        % 
+        % Populate wrenches
+        wrenches(i,:) = y0;
+        % 
+        % svd_vals = svd(J);
+        % s_min(end+1) = min(svd_vals);
+        % s_max(end+1) = max(svd_vals);
+        % jacobians{end+1} = J;
     end
-    
+
+    % Calculate pairwise separtaion matrix
+    % reshape samples rows and convert to matrix
+    samples_matrix = cell2mat(cellfun(@(x) reshape(x', 1, []), samples, 'UniformOutput', false));
+    R = calcRij(wrenches, samples_matrix);
+    % number of elements = bottom 5%
+    k = max(1, floor(0.05 * numel(R)));
+    % Flatten, sort ascending, take bottom k
+    [sortedVals, idx] = sort(R(:), 'ascend');
+    linIdx = idx(1:k);
+    vals   = sortedVals(1:k);
+    % Convert linear indices to row/col subscripts
+    [rows, cols] = ind2sub(size(R), linIdx);
+    % Mean of the bottom 5%
+    R_mean_bottom_5 = mean(vals);
     
     % Form bi-Lipschitz bounds
     m_hat = min(s_min);
@@ -86,12 +105,11 @@ function [score, bounds] = compute_bilipschitz_score(r, S1, samples, n_samples, 
     % Take mean of bottom 10% of singular values
     s_min_sorted = sort(s_min);                  % sort into ascending order
     k = ceil(0.10 * numel(s_min_sorted));          % how many elements = 10%
-    s_bottom_10 = mean(s_min_sorted(1:k));         % mean of bottom 10%
+    s_bottom_5 = mean(s_min_sorted(1:k));         % mean of bottom 10%
     
     % Score: maximize mean of bottom 10% singular values
-    score = s_bottom_10;  % Simple: just maximize lower bound
-    % Alternative: score = m_hat / M_hat;  % Maximize ratio
-    
+    %score = s_bottom_10;  % Simple: just maximize lower bound
+    score = min(sortedVals);
     bounds = struct('m_hat', m_hat, 'M_hat', M_hat);
 end
 
@@ -100,39 +118,28 @@ end
 %% Test Force Generation
 function test_forces = generate_test_forces(n_forces)
     % Ranges
-    F = [0.1, 1.0];
-    s_values = 0.02:0.02:0.20;  % Discrete values from 0.02 to 0.2
-    el = [-pi, pi];
-    az = [pi/2-0.1, pi/2+0.1];
+    F_range = [0.1, 1.0];
+    s_range = [0.02 0.20];  % Discrete values from 0.02 to 0.2
+    el_range = [0, 2*pi];
+    az_range = [pi/2-0.1, pi/2+0.1];
     
     % Helper
     scale = @(u,r) r(1) + u.*diff(r);
     
     % LHS for magnitudes and angles (not for s values)
     rng(1234); % fixed seed
-    U1 = lhsdesign(n_forces, 3); % [F1, el1, az1]
-    U2 = lhsdesign(n_forces, 3); % [F2, el2, az2]
+    U1 = lhsdesign(n_forces, 4); % [F1, s1, el1, az1]
+    U2 = lhsdesign(n_forces, 4); % [F2, s2, el2, az2]
     
     % Scale continuous parameters
-    F1 = scale(U1(:,1), F);
-    F2 = scale(U2(:,1), F);
-    el1 = scale(U1(:,2), el);
-    el2 = scale(U2(:,2), el);
-    az1 = scale(U1(:,3), az);
-    az2 = scale(U2(:,3), az);
-    
-    % Sample s1 and s2 from discrete values, ensuring s1 ≠ s2
-    s1 = zeros(n_forces, 1);
-    s2 = zeros(n_forces, 1);
-    
-    for i = 1:n_forces
-        % Randomly sample s1
-        s1(i) = s_values(randi(length(s_values)));
-        
-        % Sample s2, ensuring it's different from s1
-        available_s2 = s_values(s_values ~= s1(i));
-        s2(i) = available_s2(randi(length(available_s2)));
-    end
+    F1 = scale(U1(:,1), F_range);
+    F2 = scale(U2(:,1), F_range);
+    s1 = scale(U1(:,2), s_range);
+    s2 = scale(U2(:,2), s_range);
+    el1 = scale(U1(:,3), el_range);
+    el2 = scale(U2(:,3), el_range);
+    az1 = scale(U1(:,4), az_range);
+    az2 = scale(U2(:,4), az_range);
     
     % Return as 2×4 matrices (8 parameters total)
     test_forces = cell(n_forces, 1);
@@ -153,6 +160,25 @@ function S1 = update_radius(S1, r)
         end
     catch ME
         error('Failed to change beam radii: %s', ME.message);
+    end
+end
+
+function R = calcRij(W, X)
+    % W: N×m matrix of wrenches
+    % X: N×d matrix of inputs
+    % R: N×N matrix of pairwise ratios R_ij
+    
+    N = size(W,1);
+    R = zeros(N);
+    
+    for i = 1:N
+        dW = W - W(i,:);             % differences in wrench
+        dX = X - X(i,:);             % differences in input
+        num = sqrt(sum(dW.^2,2));    % ||W_i - W_j||
+        den = sqrt(sum(dX.^2,2));    % ||x_i - x_j||
+        ratios = num ./ den;             % N×1  <-- elementwise, no transpose here
+        ratios(den==0) = NaN;            % avoid div-by-zero at j=i (and any duplicates)
+        R(i,:) = ratios.';               % 1×N
     end
 end
 

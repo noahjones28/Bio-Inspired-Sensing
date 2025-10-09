@@ -1,0 +1,37 @@
+
+DOE(
+	Custom Design,
+	{Add Response( Minimize, "Force Error", ., ., . ),
+	Add Response( Minimize, "Position Error", ., ., . ),
+	Add Response( Minimize, "Roll Error", ., ., . ),
+	Add Response( Minimize, "Pitch Error", ., ., . ),
+	Add Factor( Discrete Numeric, {0.3, 0.4, 0.5, 0.6, 0.7, 0.8}, "F", 0 ),
+	Add Factor(
+		Discrete Numeric,
+		{0.06, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18, 0.2},
+		"s",
+		0
+	), Add Factor(
+		Discrete Numeric,
+		{1.571, 3.665},
+		"roll",
+		0
+	), Add Factor( Discrete Numeric, {0.785, 1.571}, "pitch", 0 ),
+	Add Factor( Discrete Numeric, {0, 0.7, 1.4}, "tau1", 0 ), Set Random Seed( 17444992 ),
+	Number of Starts( 21 ), Add Term( {1, 0} ), Add Term( {1, 1} ),
+	Add Potential Term( {1, 2} ), Add Potential Term( {1, 3} ),
+	Add Potential Term( {1, 4} ), Add Potential Term( {1, 5} ), Add Term( {2, 1} ),
+	Add Potential Term( {2, 2} ), Add Potential Term( {2, 3} ),
+	Add Potential Term( {2, 4} ), Add Potential Term( {2, 5} ), Add Term( {3, 1} ),
+	Add Potential Term( {3, 2} ), Add Potential Term( {3, 3} ),
+	Add Potential Term( {3, 4} ), Add Term( {4, 1} ), Add Potential Term( {4, 2} ),
+	Add Potential Term( {4, 3} ), Add Term( {5, 1} ),
+	Add Alias Term( {1, 1}, {2, 1} ), Add Alias Term( {1, 1}, {3, 1} ),
+	Add Alias Term( {1, 1}, {4, 1} ), Add Alias Term( {1, 1}, {5, 1} ),
+	Add Alias Term( {2, 1}, {3, 1} ), Add Alias Term( {2, 1}, {4, 1} ),
+	Add Alias Term( {2, 1}, {5, 1} ), Add Alias Term( {3, 1}, {4, 1} ),
+	Add Alias Term( {3, 1}, {5, 1} ), Add Alias Term( {4, 1}, {5, 1} ),
+	Set Sample Size( 15 ), Optimality Criterion( "Make I-Optimal Design" ),
+	Simulate Responses( 0 ), Save X Matrix( 0 ), Make Design,
+	Set Run Order( Keep the Same ), Make Table}
+);

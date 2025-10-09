@@ -121,8 +121,23 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
 
         % Find and plot the largest vectors also sort the peaks from largest to smallest
         [pks, locs] = findpeaks(vecnorm(force_vectors_rotated));
-        [locs, sortIdx] = sort(locs, 'descend');
+        % Check endpoints manually
+        vec_norms = vecnorm(force_vectors_rotated);
+        n = length(vec_norms);
+        % Check if first point is a local maximum
+        if n > 1 && vec_norms(1) > vec_norms(2)
+            pks = [vec_norms(1); pks];
+            locs = [1; locs];
+        end
+        % Check if last point is a local maximum
+        if n > 1 && vec_norms(end) > vec_norms(end-1)
+            pks = [pks; vec_norms(end)];
+            locs = [locs; n];
+        end
+        % Now sort by locs in decneding order
+        [locs, sortIdx] = sort(locs, 'ascend');
         pks = pks(sortIdx);
+        
         colors = {'#24a146', '#27bcd1'}; % Colors for different forces
         h_forces = []; % Handles for legend
         

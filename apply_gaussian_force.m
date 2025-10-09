@@ -28,13 +28,14 @@ function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
     for i = 1:num_applied_forces
         F = distal_values(i, 1);
         s = distal_values(i, 2);
-        el = distal_values(i, 3);
-        az = distal_values(i, 4);
+        roll = distal_values(i, 3);
+        pitch = distal_values(i, 4);
         % Distribute a point load using a Gaussian distribution
         [x_loads, F_loads] = distributePointLoad(F, s, quadlengths, sigma, plot_gaussain_debug);
         num_dist_points = length(F_loads);
         % Convert each force to cartesian vector using az and el
-        [x,y,z] = sph2cart(az*ones(1,num_dist_points),el*ones(1,num_dist_points),F_loads);
+        [x,y,z] = rollPitchToCartesian(roll*ones(1,num_dist_points), pitch*ones(1,num_dist_points), F_loads);
+        %[x,y,z] = sph2cart(az*ones(1,num_dist_points),el*ones(1,num_dist_points),F_loads);
         % Get target division and idx of each vector 
         [target_divisions, idxs] = get_target_divisions(quadlengths, quadpoints_per_div, x_loads);
         
@@ -48,14 +49,6 @@ function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
     force_divisions = cell2mat(force_divisions);
     force_locations = cell2mat(force_locations);
     force_idxs = cell2mat(force_idxs);
-
-    % Sort force_idxs in ascending order and get the sorting indices
-    [force_idxs, sort_order] = sort(force_idxs);
-
-    % Reorder all other arrays using the same sorting indices
-    force_vectors = force_vectors(:, sort_order);  
-    force_divisions = force_divisions(sort_order);
-    force_locations = force_locations(sort_order);
 
     % Apply combined force profile to robot
     num_force_vectors = size(force_vectors,2);
@@ -88,4 +81,10 @@ function normalized_force_locations = get_normalized_force_location(quadpoints,q
     for i=1:length(idx)
         normalized_force_locations(i) = quadpoints(idx(i)-(target_divisions(i)-1)*quadpoints_per_div);
     end
+end
+
+function [x, y, z] = rollPitchToCartesian(roll, pitch, norm)
+    x = norm .* cos(pitch);
+    y = norm .* sin(pitch) .* cos(roll);
+    z = norm .* sin(pitch) .* sin(roll);
 end

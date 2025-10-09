@@ -1,24 +1,18 @@
-function distal_value = get_distal_value(prox_target, tau_array, varargin)
+function [distal_value, f_final] = get_distal_value(prox_target, tau_array, varargin)
     close all; 
     % Properties
     weight_vector = [1, 1, 1, 1, 1, 1]; % Set weights for [Tx,Ty,Tz,Fx,Fy,Fz]
-    uncertainties_vector = [5e-3, 5e-3, 5e-3, 5e-2, 5e-2, 5e-2]; % Set uncertianties for [Tx,Ty,Tz,Fx,Fy,Fz]
-    lb = [0.05, 0.01, -pi/2, -pi]; % Lower bounds for [F,s,el,az]
-    ub = [1, 0.2, pi/2, pi]; % Upper bounds for [F,s,el,az]
-    N_limit = 2; % Limit on how many loads to check for
-    N_start = 2; % number of loads to start checking for  
+    lb = [0.1, 0.01, 0, 0]; % Lower bounds for [F,s,el,az]
+    ub = [1, 0.2, 2*pi, pi]; % Upper bounds for [F,s,el,az]
+    N_limit = 1; % Limit on how many loads to check for
+    N_start = 1; % number of loads to start checking for  
     plot_residual = true; % enable or disable the live plot
-    plot_force = false; % enable or disable the live plot
-    uncertainty = false;
+    plot_force = true; % enable or disable the live plot
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];
-    
-    % Optional simulate uncertianty
-    if uncertainty
-        noise = uncertainties_vector .* ones(size(prox_target));
-        prox_target = prox_target + noise; % Use noisy target
-    end
 
+    %prox_target = add_proportional_noise(prox_target);
+    
     % Create figure for real-time residual
     if plot_residual
         fig = figure('Name', 'Optimization Progress', 'Position', [100, 100, 600, 400]);
@@ -79,7 +73,7 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
         % Finds [F, s, el] for a single force
        
         % Generate Sobol/space-filling start points
-        max_starts = 3;
+        max_starts = 15;
         start_points = get_space_filling_points(lb, ub, max_starts);
         custom_start_points = CustomStartPointSet(start_points);
         
@@ -95,7 +89,7 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
             'options', optimoptions('lsqnonlin', ...
                 'Algorithm', 'levenberg-marquardt', ...
                 'Display', 'off', ...
-                'MaxIterations',20,...
+                'MaxIterations',30,...
                 'FiniteDifferenceType', 'forward', ...
                 'OutputFcn',@output_function)); ...
 
@@ -129,7 +123,7 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
         x0 = (lb + ub)/2 + jitter_frac*(ub - lb).*(2*rand(1, numel(lb)) - 1); % initial guess
         
         % Generate Sobol/space-filling start points
-        max_starts = 20;
+        max_starts = 10;
         start_points = get_space_filling_points(lb, ub, max_starts);
         custom_start_points = CustomStartPointSet(start_points);
 
@@ -142,13 +136,13 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
             'options', optimoptions('lsqnonlin', ...
                 'Algorithm', 'trust-region-reflective', ...
                 'Display', 'off', ...
-                'MaxIterations',30, ...
+                'FunctionTolerance', 1e-6, ...
+                'StepTolerance', 1e-6, ...
                 'OutputFcn',@output_function)); ...
         
         % Create MultiStart object
         ms = MultiStart('Display', 'iter', ...
                         'UseParallel', false, ...
-                        'MaxTime', 120, ...
                         'StartPointsToRun', 'all');
 
 
@@ -189,6 +183,14 @@ function distal_value = get_distal_value(prox_target, tau_array, varargin)
             % Update iteration count
             iteration_counter = iteration_counter + 1;
             iterations(end+1) = iteration_counter;
+
+            % Abandon if objective is still too high after N iterations
+            if iteration_counter > 10 && optimValues.resnorm > 1e-3
+                fprintf('  Abandoning: resnorm %.2e after %d iters\n', ...
+                    optimValues.resnorm, iteration_counter);
+                iteration_counter = 0;
+                stop = true;
+            end
 
             % Get objective function value
             f = optimValues.resnorm; % For lsqnonlin, use resnorm 

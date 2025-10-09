@@ -1,4 +1,4 @@
-function J = jacobian_forward_fd(f, x0)
+function [J, y0] = jacobian_forward_fd(f, x0)
     % Forward difference Jacobian for 6×6 system
     % x0 is 2×3: [F1 s1 el1; F2 s2 el2]
     
