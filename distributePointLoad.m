@@ -49,7 +49,7 @@ function [x_loads, F_loads] = distributePointLoad(F_total, x0, x_available, sigm
         hold on;
         
         % Plot distributed loads as stems
-        stem(x_loads, F_loads, 'filled', 'LineWidth', 2, 'MarkerSize', 8, ...
+        stem(x_loads, F_loads, 'filled', 'LineWidth', 1, 'MarkerSize', 4, ...
              'Color', [0.85, 0.33, 0.1], 'DisplayName', 'Distributed loads');
         
         % Mark original load location
@@ -62,7 +62,7 @@ function [x_loads, F_loads] = distributePointLoad(F_total, x0, x_available, sigm
         
         xlabel('Position (m)', 'FontSize', 12);
         ylabel('Force (N)', 'FontSize', 12);
-        title(sprintf('Gaussian Distribution of Point Load (\\sigma = %.2f m)', sigma), ...
+        title(sprintf('Gaussian Distribution of Point Load (\\sigma = %.4f m)', sigma), ...
               'FontSize', 13);
         legend('Location', 'best');
         grid on;

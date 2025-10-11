@@ -10,8 +10,10 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, vara
     plot_force = true; % enable or disable the live plot
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];
-
-    %prox_target = add_proportional_noise(prox_target);
+    
+    vibration_noise = [0.005, 0.01, 0.01, 0.1, 0.1, 0.1];  % Forces in N, Torques in N·m
+    prox_target = add_noise(prox_target, vibration_noise, 'additive', 42);
+    
     
     % Create figure for real-time residual
     if plot_residual
@@ -73,7 +75,7 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, vara
         % Finds [F, s, el] for a single force
        
         % Generate Sobol/space-filling start points
-        max_starts = 15;
+        max_starts = 10;
         start_points = get_space_filling_points(lb, ub, max_starts);
         custom_start_points = CustomStartPointSet(start_points);
         

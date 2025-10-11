@@ -1,6 +1,7 @@
 function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, force_idxs, doPlot, fig_handle)
     plot_geometry = true;
-    plot_regulization_gaussian = false;
+    plot_regulization_gaussian = true;
+    plot_tendons = false;
 
     if nargin < 7 % if doPlot was not provided
         doPlot = false; % default
@@ -88,16 +89,19 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     % Plot deflected backbone
     plot3(position(1,:), position(2,:), position(3,:), 'b.-', 'LineWidth', 2, 'MarkerSize', 8);
 
+    
     % Plot deflected tendons
-    tendon1_undeflected = [undeflected_backbone(1,:); undeflected_backbone(2,:)+8e-3*cosd(30); undeflected_backbone(3,:)+8e-3*sind(30)];
-    tendon2_undeflected = [undeflected_backbone(1,:); undeflected_backbone(2,:)+8e-3*cosd(150); undeflected_backbone(3,:)+8e-3*sind(150)];
-    tendon3_undeflected = [undeflected_backbone(1,:); undeflected_backbone(2,:)+8e-3*cosd(270); undeflected_backbone(3,:)+8e-3*sind(270)];
-    tendon1_deflected = tendon1_undeflected+translations;
-    tendon2_deflected = tendon2_undeflected+translations;
-    tendon3_deflected = tendon3_undeflected+translations;
-    h_tendon1 = plot3(tendon1_deflected(1,:), tendon1_deflected(2,:), tendon1_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#9334e6'));
-    h_tendon2 = plot3(tendon2_deflected(1,:), tendon2_deflected(2,:), tendon2_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#e1477e'));
-    h_tendon3 = plot3(tendon3_deflected(1,:), tendon3_deflected(2,:), tendon3_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#741b47'));
+    if plot_tendons
+        tendon1_undeflected = [undeflected_backbone(1,:); undeflected_backbone(2,:)+8e-3*cosd(30); undeflected_backbone(3,:)+8e-3*sind(30)];
+        tendon2_undeflected = [undeflected_backbone(1,:); undeflected_backbone(2,:)+8e-3*cosd(150); undeflected_backbone(3,:)+8e-3*sind(150)];
+        tendon3_undeflected = [undeflected_backbone(1,:); undeflected_backbone(2,:)+8e-3*cosd(270); undeflected_backbone(3,:)+8e-3*sind(270)];
+        tendon1_deflected = tendon1_undeflected+translations;
+        tendon2_deflected = tendon2_undeflected+translations;
+        tendon3_deflected = tendon3_undeflected+translations;
+        h_tendon1 = plot3(tendon1_deflected(1,:), tendon1_deflected(2,:), tendon1_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#9334e6'));
+        h_tendon2 = plot3(tendon2_deflected(1,:), tendon2_deflected(2,:), tendon2_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#e1477e'));
+        h_tendon3 = plot3(tendon3_deflected(1,:), tendon3_deflected(2,:), tendon3_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#741b47'));
+    end
     
     % Get backbone positions of the forces
     force_positions = position(:,force_idxs);
@@ -154,27 +158,34 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
         end
         
         % Add legend with parameter values for forces and tendons
-        legend_labels = cell(1, length(locs) + 3);
-        legend_handles = [h_forces, h_tendon1, h_tendon2, h_tendon3, h_undeflected];
+        if plot_tendons
+            legend_labels = cell(1, length(locs) + 4);
+            legend_handles = [h_forces, h_tendon1, h_tendon2, h_tendon3, h_undeflected];
+        else
+            legend_labels = cell(1, length(locs) + 1);
+            legend_handles = [h_forces, h_undeflected];
+        end
         
         for i = 1:length(locs)
             if num_forces == 1
-                legend_labels{i} = sprintf('Force %d: \\bfF\\rm = %.3f N, \\bfs\\rm = %.3f m, \\bfel\\rm = %.3f rad, \\bfaz\\rm = %.3f rad', ...
+                legend_labels{i} = sprintf('Force %d: \\bfF\\rm = %.3f N, \\bfs\\rm = %.3f m, \\bfθ_1\\rm = %.3f rad, \\bfθ_2\\rm = %.3f rad', ...
                     i, distal_values(1), distal_values(2), distal_values(3), distal_values(4));
             else
-                legend_labels{i} = sprintf('Force %d: \\bfF\\rm = %.3f N, \\bfs\\rm = %.3f m, \\bfel\\rm = %.3f rad, \\bfaz\\rm = %.3f rad', ...
+                legend_labels{i} = sprintf('Force %d: \\bfF\\rm = %.3f N, \\bfs\\rm = %.3f m, \\bfθ_1\\rm = %.3f rad, \\bfθ_2\\rm = %.3f rad', ...
                     i, distal_values(i, 1), distal_values(i, 2), distal_values(i, 3), distal_values(i, 4));
             end
         end
         
-        % Add tendon labels
-        legend_labels{length(locs) + 1} = sprintf('Tendon 1: \\bftau\\rm = %.3f', tau_array(1));
-        legend_labels{length(locs) + 2} = sprintf('Tendon 2: \\bftau\\rm = %.3f', tau_array(2));
-        legend_labels{length(locs) + 3} = sprintf('Tendon 3: \\bftau\\rm = %.3f', tau_array(3));
-        legend_labels{length(locs) + 4} = 'Initial Deflection';
-        
+        % Add tendon labels if plotting tendons
+        if plot_tendons
+            legend_labels{length(locs) + 1} = sprintf('Tendon 1: \\bftau\\rm = %.3f', tau_array(1));
+            legend_labels{length(locs) + 2} = sprintf('Tendon 2: \\bftau\\rm = %.3f', tau_array(2));
+            legend_labels{length(locs) + 3} = sprintf('Tendon 3: \\bftau\\rm = %.3f', tau_array(3));
+            legend_labels{length(locs) + 4} = 'Initial Deflection';
+        else
+            legend_labels{length(locs) + 1} = 'Initial Deflection';
+        end
         legend(legend_handles, legend_labels, 'Location', 'southeast');
     end
-
     drawnow; % Force immediate plot update
 end
