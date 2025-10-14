@@ -1,19 +1,22 @@
-function [distal_value, f_final] = get_distal_value(prox_target, tau_array, varargin)
+function [distal_value, f_final] = get_distal_value(prox_target, tau_array, noise_vector)
     close all; 
     % Properties
     weight_vector = [1, 1, 1, 1, 1, 1]; % Set weights for [Tx,Ty,Tz,Fx,Fy,Fz]
     lb = [0.1, 0.01, 0, 0]; % Lower bounds for [F,s,el,az]
     ub = [1, 0.2, 2*pi, pi]; % Upper bounds for [F,s,el,az]
-    N_limit = 1; % Limit on how many loads to check for
-    N_start = 1; % number of loads to start checking for  
+    N_limit = 2; % Limit on how many loads to check for
+    N_start = 2; % number of loads to start checking for  
     plot_residual = true; % enable or disable the live plot
     plot_force = true; % enable or disable the live plot
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];
     
-    vibration_noise = [0.005, 0.01, 0.01, 0.1, 0.1, 0.1];  % Forces in N, Torques in N·m
-    prox_target = add_noise(prox_target, vibration_noise, 'additive', 42);
-    
+    if nargin < 3   % if noise_vector not provided
+        % do nothing
+    else
+        % Apply pre-generated noise directly
+        prox_target = prox_target + noise_vector;
+    end
     
     % Create figure for real-time residual
     if plot_residual
@@ -75,7 +78,7 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, vara
         % Finds [F, s, el] for a single force
        
         % Generate Sobol/space-filling start points
-        max_starts = 10;
+        max_starts = 5;
         start_points = get_space_filling_points(lb, ub, max_starts);
         custom_start_points = CustomStartPointSet(start_points);
         
@@ -89,9 +92,10 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, vara
             'lb', lb, ...
             'ub', ub, ...
             'options', optimoptions('lsqnonlin', ...
-                'Algorithm', 'levenberg-marquardt', ...
+                'Algorithm', 'trust-region-reflective', ...
                 'Display', 'off', ...
-                'MaxIterations',30,...
+                'FunctionTolerance', 1e-4, ...
+                'StepTolerance',1e-4, ...
                 'FiniteDifferenceType', 'forward', ...
                 'OutputFcn',@output_function)); ...
 
@@ -187,12 +191,12 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, vara
             iterations(end+1) = iteration_counter;
 
             % Abandon if objective is still too high after N iterations
-            if iteration_counter > 10 && optimValues.resnorm > 1e-3
-                fprintf('  Abandoning: resnorm %.2e after %d iters\n', ...
-                    optimValues.resnorm, iteration_counter);
-                iteration_counter = 0;
-                stop = true;
-            end
+            % if iteration_counter > 10 && optimValues.resnorm > 1e-3
+            %     fprintf('  Abandoning: resnorm %.2e after %d iters\n', ...
+            %         optimValues.resnorm, iteration_counter);
+            %     iteration_counter = 0;
+            %     stop = true;
+            % end
 
             % Get objective function value
             f = optimValues.resnorm; % For lsqnonlin, use resnorm 

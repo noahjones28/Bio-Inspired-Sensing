@@ -1,4 +1,4 @@
-function distal_values = get_distal_values(proximal_values, N)
+function distal_values = get_distal_values(proximal_values, N, noise_sigma)
     % Create a parallel pool if one isn't already open
     if isempty(gcp('nocreate'))
         localCluster = parcluster('Noah12');
@@ -8,17 +8,29 @@ function distal_values = get_distal_values(proximal_values, N)
 
     tau_arrays = proximal_values(:, 7:end); % [tau1, tau2, tau3]
     proximal_values = proximal_values(:, 1:6); % [Tx, Ty, Tz, Fx, Fy, Fz]
+    num_samples = size(proximal_values, 1);
     
+    if noise_sigma == zeros(1,6)
+        % do nothing
+    else
+        % Generate Sobol noise once
+        noise_samples = generate_sobol_noise(num_samples, noise_sigma);
+    end
     
     % Initialize futures array
-    num_samples = size(proximal_values, 1);
     futures(1:num_samples) = parallel.FevalFuture;
     
     % Loop through all rows
     for index = 1:num_samples
         proximal_value = proximal_values(index, :);  % Pass entire row
         tau_array = tau_arrays(index, :);
-        futures(index) = parfeval(@get_distal_value, 2, proximal_value, tau_array);
+
+        if noise_sigma == zeros(1,6)
+            futures(index) = parfeval(@get_distal_value, 2, proximal_value, tau_array);
+        else
+            noise_sample = noise_samples(index, :);
+            futures(index) = parfeval(@get_distal_value, 2, proximal_value, tau_array, noise_sample);
+        end
     end
     
     % Initialize distal_values based on N
