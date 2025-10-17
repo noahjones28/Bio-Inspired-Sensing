@@ -1,7 +1,13 @@
 function [distal_value, f_final] = get_distal_value(prox_target, tau_array, noise_vector)
     close all; 
     % Properties
-    weight_vector = [1, 1, 1, 1, 1, 1]; % Set weights for [Tx,Ty,Tz,Fx,Fy,Fz]
+    force_scale = 1;   % Typical force magnitude in N
+    torque_scale = 0.1;   % Typical torque magnitude in Nm
+    weight_vector = [1/torque_scale, 1/torque_scale, 1/torque_scale, ...
+                     1/force_scale, 1/force_scale, 1/force_scale];
+    weight_vector(1) = 0;  % Ignore first element completely
+    % Normalize so all weights sum to 1
+    weight_vector = weight_vector / sum(weight_vector);
     lb = [0.1, 0.01, 0, 0]; % Lower bounds for [F,s,el,az]
     ub = [1, 0.2, 2*pi, pi]; % Upper bounds for [F,s,el,az]
     N_limit = 2; % Limit on how many loads to check for
@@ -11,11 +17,18 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
     func_tol_target = 1e-12; % Target accuracy before stopping
     f_best = Inf; x_best = [];
     
+    % Check if we have support measurements
+    use_support = size(prox_target, 1) == 4;
+    
     if nargin < 3   % if noise_vector not provided
         % do nothing
     else
-        % Apply pre-generated noise directly
-        prox_target = prox_target + noise_vector;
+        % Apply pre-generated noise directly (only to main measurement)
+        if use_support
+            prox_target(1,:) = prox_target(1,:) + noise_vector;
+        else
+            prox_target = prox_target + noise_vector;
+        end
     end
     
     % Create figure for real-time residual
@@ -75,22 +88,32 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
 
 
     function [x_final, f_final] = single_force_optimization()
-        % Finds [F, s, el] for a single force
+        % Finds [F, s, el] or [F_main, s, el, F_sup1, F_sup2, F_sup3]
        
+        if use_support
+            % Bounds: [F_main, s, el, F_sup1, F_sup2, F_sup3]
+            lb_single = [0.1, 0.01, 0, 0.1, 0.1, 0.1];
+            ub_single = [1, 0.2, 2*pi, 1, 1, 1];
+        else
+            % Bounds: [F, s, el]
+            lb_single = [0.1, 0.01, 0];
+            ub_single = [1, 0.2, 2*pi];
+        end
+        
         % Generate Sobol/space-filling start points
         max_starts = 5;
-        start_points = get_space_filling_points(lb, ub, max_starts);
+        start_points = get_space_filling_points(lb_single, ub_single, max_starts);
         custom_start_points = CustomStartPointSet(start_points);
         
         % Initial guess
-        x0 = (lb + ub)/2;
+        x0 = (lb_single + ub_single)/2;
         
         % Create optimization problem
         problem = createOptimProblem('lsqnonlin', ...
             'objective', @(x) residual_vec(x), ...
             'x0', x0, ...  % Initial guess (required but will be overridden)
-            'lb', lb, ...
-            'ub', ub, ...
+            'lb', lb_single, ...
+            'ub', ub_single, ...
             'options', optimoptions('lsqnonlin', ...
                 'Algorithm', 'trust-region-reflective', ...
                 'Display', 'off', ...
@@ -107,7 +130,13 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
 
         [x_final, resnorm, exitflag, output, solutions] = run(ms, problem, custom_start_points);
         
-        % x_final: [F, s, el, az]
+        % Extract main force parameters and add az
+        if use_support
+            x_final = [x_final(1:3), pi/2];
+        else
+            x_final = [x_final, pi/2];
+        end
+        
         % f_final is now the sum of squared residuals (resnorm)
         f_final = resnorm;  % lsqnonlin returns this directly
 
@@ -118,32 +147,42 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
     end
 
     function [x_final, f_final] = multi_force_optimization()
-        % Finds [F1, s1, el1, F2, s2, el2] for two point forces
+        % Finds [F1, s1, el1, F2, s2, el2] or
+        % [F1_main, s1, el1, F2_main, s2, el2, F1_sup1, F2_sup1, F1_sup2, F2_sup2, F1_sup3, F2_sup3]
         
-      
-        lb = [0.1, 0.02, 0, 0.1, 0.02, 0]; % lower bound [F1,s1,el1,F2,s2,el2...]
-        ub = [1, 0.2, 2*pi, 1, 0.2, 2*pi]; % upper bound [F1,s1,el1,F2,s2,el2...]
+        if use_support
+            % Bounds: main state [F1,s1,el1,F2,s2,el2] + 3 support states [F1,F2] each
+            lb_multi = [0.1, 0.02, 0, 0.1, 0.02, 0, ...  % Main
+                        0.1, 0.1, 0.1, 0.1, 0.1, 0.1];    % Support forces
+            ub_multi = [1, 0.2, 2*pi, 1, 0.2, 2*pi, ...  % Main
+                        1, 1, 1, 1, 1, 1];                % Support forces
+        else
+            % Bounds: [F1,s1,el1,F2,s2,el2]
+            lb_multi = [0.1, 0.02, 0, 0.1, 0.02, 0];
+            ub_multi = [1, 0.2, 2*pi, 1, 0.2, 2*pi];
+        end
         
         % Initial guess
         jitter_frac = 5e-1;
-        x0 = (lb + ub)/2 + jitter_frac*(ub - lb).*(2*rand(1, numel(lb)) - 1); % initial guess
+        x0 = (lb_multi + ub_multi)/2 + jitter_frac*(ub_multi - lb_multi).*(2*rand(1, numel(lb_multi)) - 1);
         
         % Generate Sobol/space-filling start points
         max_starts = 10;
-        start_points = get_space_filling_points(lb, ub, max_starts);
+        start_points = get_space_filling_points(lb_multi, ub_multi, max_starts);
         custom_start_points = CustomStartPointSet(start_points);
 
         % Create optimization problem
         problem = createOptimProblem('lsqnonlin', ...
             'objective', @(x) residual_vec(x), ...
             'x0', x0, ...  % Initial guess (required but will be overridden)
-            'lb', lb, ...
-            'ub', ub, ...
+            'lb', lb_multi, ...
+            'ub', ub_multi, ...
             'options', optimoptions('lsqnonlin', ...
                 'Algorithm', 'trust-region-reflective', ...
                 'Display', 'off', ...
                 'FunctionTolerance', 1e-6, ...
                 'StepTolerance', 1e-6, ...
+                'FiniteDifferenceStepSize',1e-3, ...
                 'OutputFcn',@output_function)); ...
         
         % Create MultiStart object
@@ -155,15 +194,19 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
         [x_final, resnorm, exitflag, output, solutions] = run(ms, problem, custom_start_points);
 
         % f_final is now the sum of squared residuals (resnorm)
-        f_final = resnorm;  % lsqnonlin returns this directly
+        f_final = resnorm;
 
-        % x_final: [F1, s1, el1, F2, s2, el2]    
-        % Reshape x_final to [F1, s1, el1, az1; F2, s2, el2, az2]
-        x_final = reshape(x_final,3,N)';  % makes it Nx3
+        % Extract just the main state [F1_main, s1, el1, F2_main, s2, el2]
+        x_main = x_final(1:6);
+        
+        % Reshape to [F1, s1, el1, az1; F2, s2, el2, az2]
+        x_final = reshape(x_main, 3, N)';
         x_final = [x_final, repmat(pi/2, N, 1)];
+        
         % Sort forces based on s column (descending order)
         [~, idx] = sort(x_final(:,2), 'descend');
         x_final = x_final(idx, :);
+        
         fprintf('Multi force optimization complete!\n')
         fprintf('Objective func = %.6e\n',f_final);
         fprintf('x =\n');
@@ -171,14 +214,54 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
     end
     
     function r = residual_vec(x)
-        if N > 1
-            % if multi-contact reshape x from [F1, s1, el1, F2, s2, el2] to [F1, s1, el1, az1; F2, s2, el2, az2] 
-            x = reshape(x,3,N)';  % makes it Nx3
-            x = [x, repmat(pi/2, N, 1)];
-        end 
-        y = get_proximal_value(x, tau_array);   % returns [Tx,Ty,Tz,Fx,Fy,Fz]
-        r = weight_vector .* (y - prox_target);  % weighted residual vector
-        r = r'; % transpose residual to column vector (lsqnonlin expects a column vector) 
+        if ~use_support
+            % Original behavior: single measurement
+            if N > 1
+                % if multi-contact reshape x from [F1, s1, el1, F2, s2, el2] to [F1, s1, el1, az1; F2, s2, el2, az2] 
+                x = reshape(x,3,N)';  % makes it Nx3
+                x = [x, repmat(pi/2, N, 1)];
+            else
+                x = [x, pi/2];  % Add az for single force
+            end 
+            y = get_proximal_value(x, tau_array);   % returns [Tx,Ty,Tz,Fx,Fy,Fz]
+            r = weight_vector .* (y - prox_target);  % weighted residual vector
+            r = r'; % transpose residual to column vector (lsqnonlin expects a column vector)
+        else
+            % Support measurements: separate forces but shared geometry
+            % x = [F1_main, s1, el1, ..., FN_main, sN, elN, F1_sup1, ..., FN_sup1, F1_sup2, ..., FN_sup2, F1_sup3, ..., FN_sup3]
+            
+            % Extract main state (F, s, el for all N)
+            x_main = x(1:3*N);
+            if N > 1
+                x_main = reshape(x_main, 3, N)';
+                x_main = [x_main, repmat(pi/2, N, 1)];
+            else
+                x_main = [x_main, pi/2];  % Add az for single force
+            end
+            
+            % Main measurement
+            y_main = get_proximal_value(x_main, tau_array(1,:));
+            r_main = weight_vector .* (y_main - prox_target(1,:));
+            
+            % Supporting measurements - share same s, el, but different F
+            r_support = [];
+            for i = 1:3
+                % Extract support forces for this measurement
+                F_support = x(3*N + (i-1)*N + 1 : 3*N + i*N);
+                
+                % Create support state with new forces but same geometry
+                x_support = x_main;
+                x_support(:,1) = F_support;  % Replace forces, keep s, el, az
+                
+                % Use corresponding row from tau_array
+                y_support = get_proximal_value(x_support, tau_array(i+1,:));
+                r_i = weight_vector .* (y_support - prox_target(i+1,:));
+                r_support = [r_support, r_i];
+            end
+            
+            % Combine all residuals (4 measurements × 6 DOF = 24 elements)
+            r = [r_main, r_support]';
+        end
     end
 
     function stop = output_function(x, optimValues, state)
@@ -189,14 +272,6 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
             % Update iteration count
             iteration_counter = iteration_counter + 1;
             iterations(end+1) = iteration_counter;
-
-            % Abandon if objective is still too high after N iterations
-            % if iteration_counter > 10 && optimValues.resnorm > 1e-3
-            %     fprintf('  Abandoning: resnorm %.2e after %d iters\n', ...
-            %         optimValues.resnorm, iteration_counter);
-            %     iteration_counter = 0;
-            %     stop = true;
-            % end
 
             % Get objective function value
             f = optimValues.resnorm; % For lsqnonlin, use resnorm 
@@ -224,14 +299,25 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
     end
 
     function update_force_plot(x, fig_handle)
+        % Extract main state only for plotting
+        x_main = x(1:3*N);
         if N > 1
-            % if multi-contact reshape x from [F1, s1, el1, F2, s2, el2] to [F1, s1, el1, az1; F2, s2, el2, az2] 
-            x = reshape(x,3,N)';  % makes it Nx3
-            x = [x, repmat(pi/2, N, 1)];
-        end 
+            x_main = reshape(x_main, 3, N)';
+            x_main = [x_main, repmat(pi/2, N, 1)];
+        else
+            if use_support
+                x_main = [x_main, pi/2];
+            else
+                x_main = [x, pi/2];
+            end
+        end
         
-        % Get proximal values with plotting enabled
-        y = get_proximal_value(x, tau_array, true, fig_handle); % Pass figure handle
+        % Get proximal values with plotting enabled (use main tau)
+        if use_support
+            y = get_proximal_value(x_main, tau_array(1,:), true, fig_handle);
+        else
+            y = get_proximal_value(x_main, tau_array, true, fig_handle);
+        end
     end
     
     function update_plot()
