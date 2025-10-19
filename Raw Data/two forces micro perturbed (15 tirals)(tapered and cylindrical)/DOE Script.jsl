@@ -1,0 +1,15 @@
+
+DOE(
+	Custom Design,
+	{Add Response( Minimize, "Force Error", ., ., . ),
+	Add Response( Minimize, "Position Error", ., ., . ),
+	Add Response( Minimize, "Angle Error", ., ., . ),
+	Add Factor( Discrete Numeric, {0.3, 0.4, 0.5, 0.6, 0.7, 0.8}, "F1", 0 ),
+	Add Factor( Discrete Numeric, {0.1, 0.12, 0.14, 0.16, 0.18, 0.2}, "s1", 0 ),
+	Add Factor( Discrete Numeric, {1.57, 3.142, 4.712}, "el1", 0 ),
+	Add Factor( Discrete Numeric, {0.3, 0.4, 0.5, 0.6, 0.7, 0.8}, "F2", 0 ),
+	Add Factor( Discrete Numeric, {0.02, 0.04, 0.06, 0.08}, "s2", 0 ),
+	Add Factor( Discrete Numeric, {3.142, 3.927, 4.712}, "el2", 0 ),
+	Add Factor( Discrete Numeric, {0, 0.4, 0.8}, "tau1", 0 ),
+	Set Random Seed( 4567223 ), Simulate Responses( 0 ), Save X Matrix( 0 )}
+);

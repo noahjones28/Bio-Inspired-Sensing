@@ -1,15 +1,20 @@
 function distal_values = get_distal_values(proximal_values, N, noise_sigma)
+    % proximal_values is now Nx1 cell array
+    % Each cell contains (1+n)x9 array: [Tx, Ty, Tz, Fx, Fy, Fz, tau1, tau2, tau3]
+    
     % Create a parallel pool if one isn't already open
     if isempty(gcp('nocreate'))
         localCluster = parcluster('Noah12');
         delete(localCluster.Jobs)
         parpool(localCluster)
     end
-
-    tau_arrays = proximal_values(:, 7:end); % [tau1, tau2, tau3]
-    proximal_values = proximal_values(:, 1:6); % [Tx, Ty, Tz, Fx, Fy, Fz]
-    num_samples = size(proximal_values, 1);
     
+    num_samples = length(proximal_values);  % Changed: length instead of size
+    
+    if nargin < 3   % if noise_sigma not provided
+        noise_sigma = zeros(1,6);
+    end
+
     if noise_sigma == zeros(1,6)
         % do nothing
     else
@@ -20,16 +25,17 @@ function distal_values = get_distal_values(proximal_values, N, noise_sigma)
     % Initialize futures array
     futures(1:num_samples) = parallel.FevalFuture;
     
-    % Loop through all rows
+    % Loop through all cells
     for index = 1:num_samples
-        proximal_value = proximal_values(index, :);  % Pass entire row
-        tau_array = tau_arrays(index, :);
-
+        data = proximal_values{index};  % Changed: extract from cell
+        prox_target = data(:, 1:6);     % Changed: extract prox (1+n)x6
+        tau_array = data(:, 7:9);       % Changed: extract tau (1+n)x3
+        
         if noise_sigma == zeros(1,6)
-            futures(index) = parfeval(@get_distal_value, 2, proximal_value, tau_array);
+            futures(index) = parfeval(@get_distal_value, 2, prox_target, tau_array);
         else
             noise_sample = noise_samples(index, :);
-            futures(index) = parfeval(@get_distal_value, 2, proximal_value, tau_array, noise_sample);
+            futures(index) = parfeval(@get_distal_value, 2, prox_target, tau_array, noise_sample);
         end
     end
     
@@ -56,7 +62,7 @@ function distal_values = get_distal_values(proximal_values, N, noise_sigma)
             fprintf('Completed %d/%d\n', i, num_samples);
         catch ME
             fprintf('Error processing row %d: %s\n', i, ME.message);
-            fprintf('Input values were: %s\n', mat2str(proximal_values(i, :)));
+            fprintf('Input values were: %s\n', mat2str(proximal_values{i}));  % Changed: cell indexing
             rethrow(ME);
         end
     end

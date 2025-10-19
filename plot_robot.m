@@ -13,7 +13,7 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
         figure(fig_handle); % Use existing figure
         clf;
         % Figure config
-        set(gcf, 'Position', [1920/4, 100, 800, 800]);
+        set(gcf, 'Position', [1920/2, 100, 800, 800]);
         set(gca, 'Units','normalized', 'Position', [0.2 0.2 0.70 0.56]);
         hold on; grid on; axis equal; axis vis3d; 
     elseif doPlot && plot_geometry
