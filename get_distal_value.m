@@ -5,7 +5,6 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
     torque_scale = 0.1;   % Typical torque magnitude in Nm
     weight_vector = [1/torque_scale, 1/torque_scale, 1/torque_scale, ...
                      1/force_scale, 1/force_scale, 1/force_scale];
-    weight_vector(1) = 0;  % Ignore first element completely
     % Normalize so all weights sum to 1
     weight_vector = weight_vector / sum(weight_vector);
     lb = [0.1, 0.01, 0, 0]; % Lower bounds for [F,s,el,az]
@@ -292,7 +291,7 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
             sensitivity_weight = 2.0;  % Tune this value (0.3-1.0)
             
             % Create selective weight vector: only Ty and Tz
-            selective_weight = [0, 1, 1, 1, 1, 1];  % [Tx, Ty, Tz, Fx, Fy, Fz]
+            selective_weight = [1, 1, 1, 1, 1, 1];  % [Tx, Ty, Tz, Fx, Fy, Fz]
             selective_weight_vector = selective_weight .* weight_vector;
             
             r_support = [];
