@@ -5,7 +5,7 @@ function [optimal_radius, results] = optimize_beam_radius(S1, varargin)
     % Parse inputs
     p = inputParser;
     addParameter(p, 'r_bounds', [0.001, 0.020], @(x) length(x)==2);
-    addParameter(p, 'n_samples', 50, @isnumeric);  % Number of LHS samples
+    addParameter(p, 'n_samples', 500, @isnumeric);  % Number of LHS samples
     addParameter(p, 'tau_array', [0, 0, 0], @isnumeric);
     parse(p, varargin{:});
     
@@ -17,7 +17,8 @@ function [optimal_radius, results] = optimize_beam_radius(S1, varargin)
     ub = 6e-3*ones(1,num_radii);
     % Initial guess
     %r0 = 1e-3*[4.81, 6.00, 6.00, 6.00, 3.04, 1.88, 2.63, 2.80, 2.78, 1.48, 3.09, 1.39, 1.25, 1.27, 1.25, 1.25, 1.46, 2.49, 3.65, 3.50];
-    r0 = linspace(5.5e-3, 1.75e-3, num_radii);
+    r0 = linspace(2.0e-3, 1.25e-3, num_radii);
+    %r0 = 1.75e-3*ones(1,20);
 
     % Generate samples ONCE at the beginning
     test_forces = generate_test_forces(p.Results.n_samples);
