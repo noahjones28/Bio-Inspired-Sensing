@@ -1,30 +1,73 @@
-function mean_R = pairwise_distance_scan_3(n_forces, r_array)
+function mean_R = pairwise_distance_scan_sigma(n_forces, r_array, probe_forces)
 close all;
 % PAIRWISE_DISTANCE_SCAN - Complete global mapping injectivity test
 %
-% mean_R = pairwise_distance_scan(n_forces, r_array)
+% mean_R = pairwise_distance_scan(n_forces, r_array, probe_forces)
 %
 % Inputs:
-% n_forces - Number of force samples to generate
-% r_array  - Radius array for beam geometry
+% n_forces     - Number of force samples to generate
+% r_array      - Radius array for beam geometry
+% probe_forces - [n_probes x 3] matrix of tendon perturbations (default: [0 0 0])
 %
 % Outputs:
-% mean_R - mean of per-point minimum r_ij values  % <-- CHANGED
+% mean_R - mean of per-point minimum r_ij values
+
+% Default: no probes (single measurement)
+if nargin < 3 || isempty(probe_forces)
+    probe_forces = [0 0 0; 8 0 0; 0 8 0; 0 0 8];
+end
+
+n_probes = size(probe_forces, 1);
 
 % Update radius
 update_radius(r_array);
+
 % Generate test force samples
 fprintf('Generating %d force samples...\n', n_forces);
 X = generate_single_force_samples(n_forces);
-% Compute forward model
-fprintf('Computing forward model...\n');
-W = get_proximal_values(X);
-W = W(:,2:4);
+
+% Compute forward model with probes
+fprintf('Computing forward model with %d probe(s)...\n', n_probes);
+W_stacked = [];
+
+for p = 1:n_probes
+    % Add probe perturbation to tau
+    X_probe = X;
+    X_probe(:, 6:8) = X_probe(:, 6:8) + repmat(probe_forces(p,:), n_forces, 1);
+    
+    % Compute wrench for this probe
+    W_probe = get_proximal_values(X_probe);
+    
+    % Stack horizontally: each row is [W0, W1, W2, ...]
+    W_stacked = [W_stacked, W_probe];
+end
+
+% If multiple probes, compute differential wrenches [W1-W0, W2-W0, ...]
+if n_probes > 1
+    W0 = W_stacked(:, 1:size(get_proximal_values(X(1,:)),2));
+    W_diff = [];
+    wrench_dim = size(W0, 2);
+    
+    for p = 2:n_probes
+        idx_start = (p-1)*wrench_dim + 1;
+        idx_end = p*wrench_dim;
+        W_p = W_stacked(:, idx_start:idx_end);
+        W_diff = [W_diff, W_p - W0];
+    end
+    
+    W = W_diff;  % Use differential wrenches
+    fprintf('Using stacked differential wrenches: %d probes → %d features\n', n_probes, size(W,2));
+else
+    W = W_stacked;  % Single measurement, no differential
+    fprintf('Using single measurement (no probes)\n');
+end
+
 % Remove tau from force samples
-X = X(:,1:4);
+X = X(:,1:5);
+
 % Normalize both spaces
 % For angles (columns 3,4), convert to sin/cos to handle wraparound
-X_expanded = [X(:,1:2), sin(X(:,3)), cos(X(:,3))];
+X_expanded = [X(:,1:2), sin(X(:,3)), cos(X(:,3)), sin(X(:,4)), cos(X(:,4)), X(:,5)];
 X_norm = X_expanded ./ std(X_expanded, 0, 1);
 W_norm = W ./ std(W, 0, 1);
 
@@ -42,22 +85,22 @@ for i = 1:N
 end
 
 % === Per-point minima (core injectivity signal) ===
-local_rij = min(R, [], 2, 'omitnan');                                  % <-- CHANGED
-vals = R(~isnan(R));                                                    % all off-diagonal (kept for ref if needed)
+local_rij = min(R, [], 2, 'omitnan');
+vals = R(~isnan(R));
 
 % === Statistics (report per-point minima, not all pairs) ===
-mean_R = mean(local_rij,'omitnan');                                     % <-- CHANGED
-min_R  = min(local_rij,[],'omitnan');                                   % <-- CHANGED
-max_R  = max(local_rij,[],'omitnan');                                   % <-- CHANGED
-med_R  = median(local_rij,'omitnan');                                    % <-- CHANGED
+mean_R = mean(local_rij,'omitnan');
+min_R  = min(local_rij,[],'omitnan');
+max_R  = max(local_rij,[],'omitnan');
+med_R  = median(local_rij,'omitnan');
 
 % Print results
-fprintf('\n=== Pairwise Distance Results (Per-Point Minima) ===\n');      % <-- CHANGED
+fprintf('\n=== Pairwise Distance Results (Per-Point Minima) ===\n');
 fprintf('Samples: %d\n', N);
-fprintf('Mean(per-point min): %.6f\n', mean_R);                          % <-- CHANGED
-fprintf('Median(per-point min): %.6f\n', med_R);                         % <-- CHANGED
-fprintf('Min(per-point min): %.6f\n', min_R);                            % <-- CHANGED
-fprintf('Max(per-point min): %.6f\n', max_R);                            % <-- CHANGED
+fprintf('Mean(per-point min): %.6f\n', mean_R);
+fprintf('Median(per-point min): %.6f\n', med_R);
+fprintf('Min(per-point min): %.6f\n', min_R);
+fprintf('Max(per-point min): %.6f\n', max_R);
 
 % Assessment (based on per-point minima)
 if min_R < 1e-6
@@ -78,22 +121,11 @@ k = 1;
 
 while found < 10 && k <= length(idx)
     [i, j] = ind2sub_triu(N, idx(k));
-    
-    % Check threshold
-    dF = abs(X(i,1) - X(j,1));
-    ds = abs(X(i,2) - X(j,2));
-    del = min(abs(X(i,3) - X(j,3)), 2*pi - abs(X(i,3) - X(j,3)));
-    daz = min(abs(X(i,4) - X(j,4)), 2*pi - abs(X(i,3) - X(j,3))); %#ok<NASGU> (kept for completeness)
-    
-    if dF > 0.1 || ds > 0.06
-        found = found + 1;
-        fprintf('\n--- Pair %d: Samples %d and %d ---\n', found, i, j);
-        fprintf('r_ij = %.6f\n', R_sorted(k));
-        fprintf('Force 1: F=%.3f s=%.4f el=%.3f az=%.3f\n', X(i,1), X(i,2), X(i,3), X(i,4));
-        fprintf('Force 2: F=%.3f s=%.4f el=%.3f az=%.3f\n', X(j,1), X(j,2), X(j,3), X(j,4));
-        fprintf('Wrench 1: [%s]\n', sprintf('%.4f ', W(i,:)));
-        fprintf('Wrench 2: [%s]\n', sprintf('%.4f ', W(j,:)));
-    end
+    found = found + 1;
+    fprintf('\n--- Pair %d: Samples %d and %d ---\n', found, i, j);
+    fprintf('r_ij = %.6f\n', R_sorted(k));
+    fprintf('Force 1: F=%.3f s=%.4f el=%.3f az=%.3f sigma=%.4f\n', X(i,1), X(i,2), X(i,3), X(i,4), X(i,5));
+    fprintf('Force 2: F=%.3f s=%.4f el=%.3f az=%.3f sigma=%.4f\n', X(j,1), X(j,2), X(j,3), X(j,4), X(j,5));
     
     k = k + 1;
 end
@@ -109,7 +141,7 @@ s = X(:,2);
 % ---------- PLOTS ----------
 figure('Position', [100 100 1400 900]);
 
-% (A) Histogram of per-point minima (not all pairs)  % <-- CHANGED
+% (A) Histogram of per-point minima (not all pairs)
 subplot(2,2,1);
 histogram(local_rij, 50, 'FaceColor', [0.3 0.6 0.9]);
 hold on;
@@ -123,7 +155,7 @@ title('Distribution of Per-Point Minima r_{ij}');
 legend('r_{ij}^{min} per-point', sprintf('Mean = %.3f', mean_R), 'Degenerate (<0.1)', 'Sensitive (0.3)');
 grid on;
 
-% (B) Heatmap of per-point minima over (s,F)       % <-- CHANGED
+% (B) Heatmap of per-point minima over (s,F)
 subplot(2,2,2);
 [s_grid, F_grid] = meshgrid(linspace(min(s), max(s), 100), linspace(min(F), max(F), 100));
 local_grid = griddata(s, F, local_rij, s_grid, F_grid, 'natural');
@@ -133,7 +165,7 @@ xlabel('Position s');
 ylabel('Force F');
 title('Per-Point Minimum r_{ij} (Injectivity Map)');
 
-% Traffic-light colormap: <0.1 red, 0.1–0.3 orange, >0.3 green  % <-- CHANGED
+% Traffic-light colormap: <0.1 red, 0.1–0.3 orange, >0.3 green
 caxis([0 0.5]);
 n = 256;
 n1 = max(1, round(n*(0.1/0.5)));
@@ -158,6 +190,9 @@ text(0.35, 0.5, 'Sensitive (orange)', 'FontSize', 12);
 text(0.1, 0.3, '● r_{ij} > 0.3:', 'FontSize', 12, 'Color', [0 0.5 0], 'FontWeight', 'bold');
 text(0.35, 0.3, 'Healthy (green)', 'FontSize', 12);
 text(0.1, 0.1, 'Value shown: per-point minimum r_{ij}', 'FontSize', 11, 'FontAngle', 'italic');
+if n_probes > 1
+    text(0.1, -0.05, sprintf('Using %d probes (differential wrenches)', n_probes), 'FontSize', 10, 'FontAngle', 'italic', 'Color', [0 0 0.7]);
+end
 
 end
 
@@ -186,15 +221,17 @@ F_range = [0.1, 1.0];
 s_range = [0.02, 0.20];
 el_range = [0, 2*pi];
 az_range = [pi/6, 5*pi/6];
+sigma_range = [0.002, 0.04];
 scale = @(u,r) r(1) + u.*diff(r);
 rng(1234);
-U1 = lhsdesign(n_forces, 4);
+U1 = lhsdesign(n_forces, 5);
 F = scale(U1(:,1), F_range);
 s = scale(U1(:,2), s_range);
 el = scale(U1(:,3), el_range);
 az = scale(U1(:,4), az_range);
+sigma = scale(U1(:,5), sigma_range); 
 tau = zeros(n_forces, 3);
-X = [F s el pi/2*ones(n_forces,1) tau];
+X = [F s el az sigma tau];
 end
 
 % Update Radius Function

@@ -9,8 +9,8 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
     weight_vector = weight_vector / sum(weight_vector);
     lb = [0.1, 0.01, 0, 0]; % Lower bounds for [F,s,el,az]
     ub = [1, 0.2, 2*pi, pi]; % Upper bounds for [F,s,el,az]
-    N_limit = 2; % Limit on how many loads to check for
-    N_start = 2; % number of loads to start checking for  
+    N_limit = 1; % Limit on how many loads to check for
+    N_start = 1; % number of loads to start checking for  
     plot_residual = true; % enable or disable the live plot
     plot_force = true; % enable or disable the live plot
     func_tol_target = 1e-12; % Target accuracy before stopping
@@ -90,17 +90,17 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
         % Finds [F, s, el] or [F_main, s, el, F_sup1, F_sup2, F_sup3]
        
         if use_support
-            % Bounds: [F_main, s, el, F_sup1, F_sup2, F_sup3]
-            lb_single = [0.1, 0.01, 0, 0.1, 0.1, 0.1];
-            ub_single = [1, 0.2, 2*pi, 1, 1, 1];
+            % Bounds: [F_main, s, el, az, sigma, F_sup1, F_sup2, F_sup3]
+            lb_single = [0.1, 0.01, 0, 0, 0.002, 0.1, 0.1, 0.1];
+            ub_single = [1, 0.2, 2*pi, pi, 0.04, 1, 1, 1];
         else
-            % Bounds: [F, s, el]
-            lb_single = [0.1, 0.01, 0];
-            ub_single = [1, 0.2, 2*pi];
+            % Bounds: [F, s, el, az, sigma]
+            lb_single = [0.1, 0.01, 0, 0, 0.002];
+            ub_single = [1, 0.2, 2*pi, pi, 0.04];
         end
         
         % Generate Sobol/space-filling start points
-        max_starts = 5;
+        max_starts = 2;
         start_points = get_space_filling_points(lb_single, ub_single, max_starts);
         custom_start_points = CustomStartPointSet(start_points);
         
@@ -116,8 +116,8 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
             'options', optimoptions('lsqnonlin', ...
                 'Algorithm', 'trust-region-reflective', ...
                 'Display', 'off', ...
-                'FunctionTolerance', 1e-4, ...
-                'StepTolerance',1e-4, ...
+                'FunctionTolerance', 1e-10, ...
+                'StepTolerance',1e-10, ...
                 'FiniteDifferenceType', 'forward', ...
                 'OutputFcn',@output_function)); ...
 
@@ -128,13 +128,6 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
                         'StartPointsToRun', 'all');
 
         [x_final, resnorm, exitflag, output, solutions] = run(ms, problem, custom_start_points);
-        
-        % Extract main force parameters and add az
-        if use_support
-            x_final = [x_final(1:3), pi/2];
-        else
-            x_final = [x_final, pi/2];
-        end
         
         % f_final is now the sum of squared residuals (resnorm)
         f_final = resnorm;  % lsqnonlin returns this directly
@@ -264,8 +257,6 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
                 % if multi-contact reshape x from [F1, s1, el1, F2, s2, el2] to [F1, s1, el1, az1; F2, s2, el2, az2] 
                 x = reshape(x,3,N)';  % makes it Nx3
                 x = [x, repmat(pi/2, N, 1)];
-            else
-                x = [x, pi/2];  % Add az for single force
             end 
             y = get_proximal_value(x, tau_array(1,:));   % returns [Tx,Ty,Tz,Fx,Fy,Fz]
             r = weight_vector .* (y - prox_target(1,:));  % weighted residual vector
@@ -274,13 +265,13 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
             % Support measurements: separate forces but shared geometry
             % x = [F1_main, s1, el1, ..., FN_main, sN, elN, F1_sup1, ..., FN_sup1, F1_sup2, ..., FN_sup2, F1_sup3, ..., FN_sup3]
             
-            % Extract main state (F, s, el for all N)
-            x_main = x(1:3*N);
             if N > 1
+                % Extract main state (F, s, el for all N)
+                x_main = x(1:3*N);
                 x_main = reshape(x_main, 3, N)';
                 x_main = [x_main, repmat(pi/2, N, 1)];
             else
-                x_main = [x_main, pi/2];  % Add az for single force
+               x_main = x(1:5);  
             end
             
             % Main measurement
@@ -297,11 +288,16 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
             r_support = [];
             for i = 1:3
                 % Extract support forces for this measurement
-                F_support = x(3*N + (i-1)*N + 1 : 3*N + i*N);
-                
-                % Create support state with new forces but same geometry
-                x_support = x_main;
-                x_support(:,1) = F_support;  % Replace forces, keep s, el, az
+                if N > 1
+                    F_support = x(3*N + (i-1)*N + 1 : 3*N + i*N);
+                    % Create support state with new forces but same geometry
+                    x_support = x_main;
+                    x_support(:,1) = F_support;  % Replace forces, keep s, el, az
+                else
+                     F_support = x(5+i);
+                     x_support = x_main;
+                     x_support(1) = F_support;  % Replace force, keep s, el, az, sigma
+                end                    
                 
                 % Predicted wrench and change
                 y_support = get_proximal_value(x_support, tau_array(i+1,:));
@@ -358,16 +354,12 @@ function [distal_value, f_final] = get_distal_value(prox_target, tau_array, nois
 
     function update_force_plot(x, fig_handle)
         % Extract main state only for plotting
-        x_main = x(1:3*N);
         if N > 1
+            x_main = x(1:3*N);
             x_main = reshape(x_main, 3, N)';
             x_main = [x_main, repmat(pi/2, N, 1)];
         else
-            if use_support
-                x_main = [x_main, pi/2];
-            else
-                x_main = [x, pi/2];
-            end
+            x_main = x(1:5);
         end
         
         % Get proximal values with plotting enabled
