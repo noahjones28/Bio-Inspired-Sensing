@@ -2,7 +2,6 @@ function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
 % APPLYGAUSSIANFORCE Applies Gaussian or single point force(s) to the SOROSIM linkage
 % S = applyGaussianForce(S, distal_values, N, doPlot)
     num_major_link = 2; % Main Link where force is to be applied
-    sigma = 0.005; % Standard deviation of Gaussian distribution
     plot_gaussain_debug = false; 
     
    % Get quadpoints and quadlengths
@@ -30,6 +29,7 @@ function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
         s = distal_values(i, 2);
         roll = distal_values(i, 3);
         pitch = distal_values(i, 4);
+        sigma = distal_values(i, 5);
         % Distribute a point load using a Gaussian distribution
         [x_loads, F_loads] = distributePointLoad(F, s, quadlengths, sigma, plot_gaussain_debug);
         num_dist_points = length(F_loads);

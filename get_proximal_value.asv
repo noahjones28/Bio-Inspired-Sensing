@@ -65,7 +65,7 @@ function proximal_value = get_proximal_value(distal_values, tau_array, doPlot, f
     Fy_sensor = -u(5);
     Fz_sensor = -u(6);
     
-    % Transport wrench back to beam base if using sensor offset (remove geometric coupling)
+    % Convert to base wrench 
     if sensor_offset > 0
         Ty_base = Ty_sensor-sensor_offset*Fz_sensor;
         Tz_base = Tz_sensor-sensor_offset*Fy_sensor;
@@ -75,6 +75,6 @@ function proximal_value = get_proximal_value(distal_values, tau_array, doPlot, f
     end
     
     % Output
-    proximal_value = [Tx_sensor,Ty_base,Tz_base,Fx_sensor,Fy_sensor,Fz_sensor];
+    proximal_value = [Tz_sensor,Ty_base,Tz_base,Fx_sensor,Fy_sensor,Fz_sensor];
 
 end

@@ -8,24 +8,16 @@ function proximal_values = get_proximal_values(distal_values)
    
     % Get number of rows
     numRows = size(distal_values, 1);
+
     % Preallocate cell array
     distal_values_cell = cell(numRows, 1);
+    
     % Loop through each row of the array
-    if size(distal_values,2) == 7
+    if size(distal_values,2) == 6 % [F, s, theta, tau1, tau2, tau3]
         for i = 1:numRows
-            distal_values_cell{i} = distal_values(i, 1:4); % [F, s, el, az]
+            distal_values_cell{i} = distal_values(i, 1:3);
+            tau_arrays = distal_values(:, 4:end); 
         end
-        tau_arrays = distal_values(:, 5:end); % [tau1, tau2, tau3]
-    elseif size(distal_values,2) == 8
-        for i = 1:numRows
-            distal_values_cell{i} = distal_values(i, 1:5); % [F, s, el, az, sigma]
-        end
-        tau_arrays = distal_values(:, 6:end); % [tau1, tau2, tau3]
-    elseif size(distal_values,2) == 11
-        for i = 1:numRows
-            distal_values_cell{i} = [distal_values(i, 1:4); distal_values(i, 5:8)]; % [F1, s1, el1, az1;F2, s2, el2, az2]
-        end
-        tau_arrays = distal_values(:, 9:end); % [tau1, tau2, tau3]
     end
     
     % Initialize futures array
