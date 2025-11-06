@@ -2,12 +2,12 @@ function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_ma
     close all;
     
     % Define parameters
-    lb = [0.05, 0.01, 0];      % lower bounds for [F, s, θ]
-    ub = [1, 0.2, 0];  % upper bounds for [F, s, θ]
+    lb = [0.1, 0.02, 0];      % lower bounds for [F, s, θ]
+    ub = [0.9, 0.2, 0];  % upper bounds for [F, s, θ]
     tau_array_default = [0 0 0]; % default tau array
     %noise_sigma = [0, 0.008, 0.011, 0.071, 0, 0];
-    %noise_sigma = [0, 0, 0, 0.07, 0. 0];
-    noise_sigma = [0, 0, 0, 0, 0, 0];
+    noise_sigma = [0, 0.005, 0.005, 0.07, 0. 0];
+    %noise_sigma = [0, 0, 0, 0, 0, 0];
     n = 15;             % number of samples
     n_noise = 1;        % number of noise samples per point
     plot_results = true;
@@ -119,6 +119,9 @@ function plot_error_heatmaps(distal_values, mean_abs_errors, mean_abs_errors_wei
 % Top: Combined MAE (s-F space)
     subplot(2, 3, 1);
     contourf(s_grid_F, F_grid, mae_weighted_grid, 20, 'LineColor', 'none');
+    hold on;
+    scatter(s_values, F_values, 30, 'k', 'filled', 'MarkerEdgeColor', 'w', 'LineWidth', 0.5);
+    hold off;
     colorbar;
     clim([0, inf]);  % Force colorbar to start at 0
     colormap('parula');
@@ -129,6 +132,9 @@ function plot_error_heatmaps(distal_values, mean_abs_errors, mean_abs_errors_wei
 % Bottom left: Mean absolute error in F (s-F space)
     subplot(2, 3, 4);
     contourf(s_grid_F, F_grid, mae_F_grid, 20, 'LineColor', 'none');
+    hold on;
+    scatter(s_values, F_values, 30, 'k', 'filled', 'MarkerEdgeColor', 'w', 'LineWidth', 0.5);
+    hold off;
     colorbar;
     clim([0, inf]);  % Force colorbar to start at 0
     colormap('parula');
@@ -139,6 +145,9 @@ function plot_error_heatmaps(distal_values, mean_abs_errors, mean_abs_errors_wei
 % Bottom middle: Mean absolute error in s (s-F space)
     subplot(2, 3, 5);
     contourf(s_grid_F, F_grid, mae_s_grid, 20, 'LineColor', 'none');
+    hold on;
+    scatter(s_values, F_values, 30, 'k', 'filled', 'MarkerEdgeColor', 'w', 'LineWidth', 0.5);
+    hold off;
     colorbar;
     clim([0, inf]);  % Force colorbar to start at 0
     colormap('parula');
@@ -149,6 +158,9 @@ function plot_error_heatmaps(distal_values, mean_abs_errors, mean_abs_errors_wei
 % Bottom right: Mean absolute error in θ (s-F space)
     subplot(2, 3, 6);
     contourf(s_grid_F, F_grid, mae_theta_grid, 20, 'LineColor', 'none');
+    hold on;
+    scatter(s_values, F_values, 30, 'k', 'filled', 'MarkerEdgeColor', 'w', 'LineWidth', 0.5);
+    hold off;
     colorbar;
     clim([0, inf]);  % Force colorbar to start at 0
     colormap('parula');

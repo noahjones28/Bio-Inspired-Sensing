@@ -4,9 +4,11 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     %% Setup
     % Properties
     lb = [0.05, 0.01, 0]; % Lower bounds for estimation of [F,s,theta1]
-    ub = [2, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta1]
+    ub = [1, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta1]
     plot_residual = true; % enable or disable the live plot
     plot_force = true; % enable or disable the live plot
+    do_offset_correction = false; % apply offset correction to raw data if needed
+    sensor_offset = 90e-3; %Adjust the offset between the 6axis f/t sensor and the beam base
     iteration_counter = 0; % Initialize plotting variables
     best_values = [];
     iterations = [];
@@ -16,6 +18,12 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     torque_scale = 0.1;   % Typical torque magnitude in Nm
     weight_vector = [0, 1/torque_scale, 1/torque_scale, 1/force_scale, 0, 0]; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
     weight_vector = weight_vector / sum(weight_vector); % Normalize so all weights sum to 1
+
+    % Offset correction
+    if do_offset_correction && sensor_offset > 0
+        prox_target(2) = prox_target(2)+sensor_offset*prox_target(6); % Ty_base = Ty_sensor+sensor_offset*Fz_sensor
+        prox_target(3) = prox_target(3)-sensor_offset*prox_target(5); % Tz_base = Tz_sensor-sensor_offset*Fy_sensor
+    end
     
     % Create figure for real-time residual
     if plot_residual
@@ -46,37 +54,24 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
 
     %% Optimization Configuration
     function [x_final, f_final] = single_force_optimization()
-        % Generate Sobol/space-filling start points
-        n_starts = 1; % Number of random starting points
-        start_points = get_space_filling_points(lb, ub, n_starts);
-        custom_start_points = CustomStartPointSet(start_points);
-        
         % Initial guess
         x0 = (lb + ub)/2;
         
-        % Create optimization problem
-        problem = createOptimProblem('lsqnonlin', ...
-            'objective', @(x) residual_vec(x), ...
-            'x0', x0, ...  % Initial guess (required but will be overridden)
-            'lb', lb, ...
-            'ub', ub, ...
-            'options', optimoptions('lsqnonlin', ...
-                'Algorithm', 'trust-region-reflective', ...
-                'Display', 'off', ...
-                'FunctionTolerance', 1e-10, ...
-                'StepTolerance',1e-10, ...
-                'FiniteDifferenceType', 'forward', ...
-                'OutputFcn',@output_function)); ...
+        % Create optimization options
+        options = optimoptions('lsqnonlin', ...
+            'Algorithm', 'trust-region-reflective', ...
+            'Display', 'off', ...
+            'FunctionTolerance', 1e-10, ...
+            'StepTolerance',1e-10, ...
+            'OptimalityTolerance', 1e-16, ...
+            'FiniteDifferenceType', 'forward', ...
+            'OutputFcn',@output_function);
         
-        % Create MultiStart object
-        ms = MultiStart('Display', 'iter', ...
-                        'UseParallel', false, ...
-                        'StartPointsToRun', 'all');
-
-        [x_final, resnorm, exitflag, output, solutions] = run(ms, problem, custom_start_points);
+        % Run single optimization
+        [x_final, resnorm, exitflag, output] = lsqnonlin(@(x) residual_vec(x), x0, lb, ub, options);
         
-        % f_final is now the sum of squared residuals (resnorm)
-        f_final = resnorm;  % lsqnonlin returns this directly
+        % f_final is the sum of squared residuals (resnorm)
+        f_final = resnorm;
     end
     
     %% Residual
