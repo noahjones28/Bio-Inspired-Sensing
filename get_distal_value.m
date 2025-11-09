@@ -9,6 +9,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     plot_force = true; % enable or disable the live plot
     do_offset_correction = false; % apply offset correction to raw data if needed
     sensor_offset = 90e-3; %Adjust the offset between the 6axis f/t sensor and the beam base
+    n_perturbations = size(prox_target, 1)-1;
     iteration_counter = 0; % Initialize plotting variables
     best_values = [];
     iterations = [];
@@ -24,6 +25,9 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         prox_target(2) = prox_target(2)+sensor_offset*prox_target(6); % Ty_base = Ty_sensor+sensor_offset*Fz_sensor
         prox_target(3) = prox_target(3)-sensor_offset*prox_target(5); % Tz_base = Tz_sensor-sensor_offset*Fy_sensor
     end
+    
+    % Check if we have support measurements 
+    use_support = n_perturbations > 0;
     
     % Create figure for real-time residual
     if plot_residual
@@ -54,8 +58,14 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
 
     %% Optimization Configuration
     function [x_final, f_final] = single_force_optimization()
+        if use_support
+            % Append the first element F to the back n_perturbations times
+            lb = [lb, repmat(lb(1), 1, n_perturbations)];
+            ub = [ub, repmat(ub(1), 1, n_perturbations)];
+        end
         % Initial guess
         x0 = (lb + ub)/2;
+        x0(3) = 0;
         
         % Create optimization options
         options = optimoptions('lsqnonlin', ...
@@ -70,15 +80,53 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         % Run single optimization
         [x_final, resnorm, exitflag, output] = lsqnonlin(@(x) residual_vec(x), x0, lb, ub, options);
         
+        % remove supporting measurments from x_final
+        x_final = x_final(1:end-n_perturbations);
+        
         % f_final is the sum of squared residuals (resnorm)
         f_final = resnorm;
     end
     
     %% Residual
     function r = residual_vec(x)
-        y = get_proximal_value(x, tau_array(1,:));   % returns [Tx,Ty,Tz,Fx,Fy,Fz]
-        r = weight_vector .* (y - prox_target);  % weighted residual vector
-        r = r'; % transpose residual to column vector (lsqnonlin expects a column vector)
+        if ~use_support
+            y = get_proximal_value(x, tau_array(1,:));   % returns [Tx,Ty,Tz,Fx,Fy,Fz]
+            r = weight_vector .* (y - prox_target);  % weighted residual vector
+            r = r'; % transpose residual to column vector (lsqnonlin expects a column vector)
+        else
+            x_main = x(1:3); % [F, s, theta]
+
+            % Baseline
+            y_main = get_proximal_value(x_main, tau_array(1,:)); % W_0
+            r_main = weight_vector .* (y_main - prox_target(1,:));
+            r_support = [];
+            
+            % Loop over perturbation steps (successive differences)
+            for i = 1:n_perturbations
+                % Force at step i+1 (baseline-referenced)
+                Fi = x(3+i);
+                
+                % Use same s, theta; only force changes implicitly with alpha
+                x_step = [Fi, x_main(2), x_main(3)];
+                
+                % Forward model at this perturbation command
+                y_step = get_proximal_value(x_step, tau_array(i+1,:));   % W_{i+1}
+                
+                % Predicted vs actual successive differences
+                delta_y_predicted = y_step - y_main;                      % ΔW_model(i)
+                delta_y_actual    = prox_target(i+1,:) - prox_target(1,:);% ΔW_meas(i)
+
+                % Weighted residual for this step (component-wise)
+                r_i = weight_vector .* (delta_y_predicted - delta_y_actual);
+                
+                % Combine for this perturbation
+                r_support = [r_support, r_i];
+                
+            end
+            % Combine all residuals
+            lambda = 0.05; % keep between 0.1-0.3
+            r = [lambda*r_main, r_support]';
+        end
     end
     
     %% Output functions
@@ -117,7 +165,11 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     
     function update_force_plot(x, fig_handle)
         % Get proximal values with plotting enabled
-        y = get_proximal_value(x, tau_array, true, fig_handle);
+        if ~use_support
+            y = get_proximal_value(x, tau_array, true, fig_handle);
+        else
+           y = get_proximal_value(x(1:3), tau_array(1,:), true, fig_handle);
+        end
     end
     
     function update_residual_plot()

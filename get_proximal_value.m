@@ -1,4 +1,4 @@
-function proximal_value = get_proximal_value(distal_values, tau_array, doPlot, fig_handle, S1)
+function [proximal_wrench, contact_xyz] = get_proximal_value(distal_values, tau_array, doPlot, fig_handle, S1)
     % distal_values [F, s, theta1, theta2, sigma]
     % tau_array [tau1, tau2, tau3]
     
@@ -57,6 +57,12 @@ function proximal_value = get_proximal_value(distal_values, tau_array, doPlot, f
         plot_robot(S1, q, distal_values, tau_array, force_vectors, force_idxs, doPlot, fig_handle);
     end
 
+    % Get contact position
+    %[~, idx] = max(vecnorm(force_vectors));
+    %contatct_node_idx = force_idxs(idx);
+    %contact_xyz = get_contact_xyz(q, contatct_node_idx);
+
+
     % Flip sign of u becuase we want force on robot not on joint  
     Tx_sensor = -u(1);
     Ty_sensor = -u(2);
@@ -75,6 +81,6 @@ function proximal_value = get_proximal_value(distal_values, tau_array, doPlot, f
     end
     
     % Output
-    proximal_value = [Tx_sensor,Ty_base,Tz_base,Fx_sensor,Fy_sensor,Fz_sensor];
+    proximal_wrench = [Tx_sensor,Ty_base,Tz_base,Fx_sensor,Fy_sensor,Fz_sensor];
 
 end

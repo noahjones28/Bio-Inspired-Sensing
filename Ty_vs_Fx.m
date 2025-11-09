@@ -42,15 +42,15 @@ for F = F_range
 end
 
 % Normalize the cylindrical beam values
-Ty_normalized_cyl = Ty_values_cyl / (E * I / L);  % ADDED
-Tz_normalized_cyl = Tz_values_cyl / (E * I / L);
-Fx_normalized_cyl = Fx_values_cyl / (E * I / L^2);
+Ty_normalized_cyl = Ty_values_cyl;
+Tz_normalized_cyl = Tz_values_cyl;
+Fx_normalized_cyl = Fx_values_cyl;
 
 % ========== UPDATE FOR TAPERED BEAM ==========
-%r = 2e-3;
-r_optimal = 1e-3*[0.831, 1.008, 1.222, 1.59, 1.354, 1.867, 1.783, 1.623, 1.581, 1.655, 2.092, 1.737, 1.808, 1.957, 1.826, 1.458, 1.573, 1.608, 0.738, 2.782];
+r = 1.5e-3;
+%r_optimal = 1e-3*[0.831, 1.008, 1.222, 1.59, 1.354, 1.867, 1.783, 1.623, 1.581, 1.655, 2.092, 1.737, 1.808, 1.957, 1.826, 1.458, 1.573, 1.608, 0.738, 2.782];
 %I = (pi*r^4)/4;
-update_radius(r_optimal, "multi division");
+update_radius([r, 1e-3], "tapered");
 
 % ========== SECOND RUN: TAPERED BEAM ==========
 Ty_values_tap = zeros(num_samples, 1);  % ADDED
@@ -72,9 +72,9 @@ for F = F_range
 end
 
 % Normalize the tapered beam values
-Ty_normalized_tap = Ty_values_tap / (E * I / L);  % ADDED
-Tz_normalized_tap = Tz_values_tap / (E * I / L);
-Fx_normalized_tap = Fx_values_tap / (E * I / L^2);
+Ty_normalized_tap = Ty_values_tap;
+Tz_normalized_tap = Tz_values_tap;
+Fx_normalized_tap = Fx_values_tap;
 
 % ========== CALCULATE COMMON X-AXIS LIMITS ==========  % ADDED
 all_T_values = [Ty_normalized_cyl; Ty_normalized_tap; Tz_normalized_cyl; Tz_normalized_tap];

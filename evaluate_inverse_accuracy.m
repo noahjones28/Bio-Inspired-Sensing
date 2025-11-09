@@ -2,56 +2,77 @@ function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_ma
     close all;
     
     % Define parameters
-    lb = [0.1, 0.02, 0];      % lower bounds for [F, s, θ]
-    ub = [0.9, 0.2, 0];  % upper bounds for [F, s, θ]
+    lb = [0.1, 0.05, 0];      % lower bounds for [F, s, θ]
+    ub = [0.8, 0.2, 0];  % upper bounds for [F, s, θ]
     tau_array_default = [0 0 0]; % default tau array
-    %noise_sigma = [0, 0.008, 0.011, 0.071, 0, 0];
+    tau_array_perturbations = [1 0 0; 0 1 0; 0 0 1];
+    %tau_array_perturbations = [];
     noise_sigma = [0, 0.005, 0.005, 0.07, 0. 0];
-    %noise_sigma = [0, 0, 0, 0, 0, 0];
+    inter_perturbation_noise_sigma = noise_sigma ./ 10;  
     n = 15;             % number of samples
     n_noise = 1;        % number of noise samples per point
+    n_perturbations = size(tau_array_perturbations, 1);
     plot_results = true;
     
     % If distal values not provided generate space-filling sample points
     if nargin < 1
         % Generate space-filling sample points
-        distal_values = get_space_filling_points(lb, ub, n, 'lhs');  % n×3
+        distal_values_raw = get_space_filling_points(lb, ub, n, 'lhs');  % n×3
     else
         n = size(distal_values, 1);
     end
     
-    % Get proximal values with default tau array
-    proximal_values = get_proximal_values([distal_values, repmat(tau_array_default,n,1)]);  % n×6
+    % each row repeated n_perturbations times immediately after itself
+    distal_values_perturbations = repelem(distal_values_raw, n_perturbations+1, 1);
+    % append corresponding tau values to rows
+    distal_values_perturbations = [distal_values_perturbations, repmat([tau_array_default; tau_array_perturbations], n, 1)]; 
     
-    % Expand by repeating each row n_noise times consecutively
-    distal_values_expanded = repelem(distal_values, n_noise, 1);  % (n*n_noise)×3
-    proximal_values_expanded = repelem(proximal_values, n_noise, 1);  % (n*n_noise)×6
+    % Get proximal values of all forces and perturbations
+    proximal_values = get_proximal_values(distal_values_perturbations);
+
+    % append corresponding tau values to rows
+    proximal_values = [proximal_values, repmat([tau_array_default; tau_array_perturbations], n, 1)];
+    
+    % Convert to cell where each cell is a (n_perturbations+1 x 6) array  
+    proximal_values_cell = mat2cell(proximal_values, (n_perturbations+1)*ones(n,1), size(proximal_values,2));
+    
+    % each cell repeated n_noise times immediately after itself
+    distal_values = repelem(distal_values_raw, n_noise, 1); 
+    proximal_values_cell = repelem(proximal_values_cell, n_noise, 1);  
     
     % Collect noise samples for all points
-    noise_samples = zeros(n * n_noise, 6);
+    noise_samples = [];
     for i = 1:n
-        noise = generate_sobol_noise(n_noise, noise_sigma);  % n_noise×6
-        idx_start = (i-1) * n_noise + 1;
-        idx_end = i * n_noise;
-        noise_samples(idx_start:idx_end, :) = noise;
+        additive_noise = generate_sobol_noise(n_noise, noise_sigma);  % n_noise×6
+        additive_noise = repelem(additive_noise, n_perturbations+1, 1); % repeat each row of a matrix n_perturbations times
+        
+        additive_noise = mat2cell(additive_noise, (n_perturbations+1)*ones(n_noise,1), 6);
+        inter_perturbation_noise = [zeros(1,6); generate_sobol_noise(n_perturbations, inter_perturbation_noise_sigma)];
+        % Add inter_perturbation_noise to each cell in additive_noise
+        noise_sample = cellfun(@(x) x + inter_perturbation_noise, additive_noise, 'UniformOutput', false);
+        noise_samples = [noise_samples; noise_sample];
     end
     
-    % Add noise samples to expanded proximal values
-    proximal_values_expanded_noisy = proximal_values_expanded + noise_samples;
+    % Add the j-th row of noise_samples to all rows in proximal_values_cell{j}
+    for j = 1:numel(proximal_values_cell)
+        proximal_values_cell{j}(:,1:end-3) = proximal_values_cell{j}(:,1:end-3) + noise_samples{j};
+    end
     
-    % Get estimated distal values with default tau array
-    estimated_distal_values = get_distal_values([proximal_values_expanded_noisy, repmat(tau_array_default,n*n_noise,1)]);  % (n*n_noise)×4
+    % Get estimated distal values
+    estimated_distal_values = get_distal_values(proximal_values_cell);  % (n*n_noise)×4
     
     % Extract maximum residual norm from 4th column
     max_residual_norm = max(estimated_distal_values(:, 4));
+    estimated_distal_values(:, end) = []; % remove last column
+
     
     % Compute errors
     errors = zeros(n * n_noise, 3);
-    errors(:, 1) = estimated_distal_values(:, 1) - distal_values_expanded(:, 1);  % ΔF
-    errors(:, 2) = estimated_distal_values(:, 2) - distal_values_expanded(:, 2);  % Δs
+    errors(:, 1) = estimated_distal_values(:, 1) - distal_values(:, 1);  % ΔF
+    errors(:, 2) = estimated_distal_values(:, 2) - distal_values(:, 2);  % Δs
     
     % Handle angular wrap-around for θ (shortest angular distance)
-    theta_diff = estimated_distal_values(:, 3) - distal_values_expanded(:, 3);
+    theta_diff = estimated_distal_values(:, 3) - distal_values(:, 3);
     errors(:, 3) = mod(theta_diff + pi, 2*pi) - pi;  % Δθ with wrap-around
 
     % Distal weighting vector (range/typical-scale based)
@@ -79,7 +100,7 @@ function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_ma
         fprintf('Overall Weighted MAE: %.4f (dimensionless)\n', overall_mae_weighted);
         fprintf('Maximum Residual Norm: %.4e\n', max_residual_norm);
         % Create plots
-        plot_error_heatmaps(distal_values, mean_abs_errors, mean_abs_errors_weighted, ...
+        plot_error_heatmaps(distal_values_raw, mean_abs_errors, mean_abs_errors_weighted, ...
                             overall_mae_F, overall_mae_s, overall_mae_theta, overall_mae_weighted);
     end
 
@@ -90,11 +111,11 @@ function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_ma
     
 end
 
-function plot_error_heatmaps(distal_values, mean_abs_errors, mean_abs_errors_weighted, ...
+function plot_error_heatmaps(distal_values_raw, mean_abs_errors, mean_abs_errors_weighted, ...
     overall_mae_F, overall_mae_s, overall_mae_theta, overall_mae_weighted)
 % Extract F, s, and θ values from original samples
-    F_values = distal_values(:, 1);
-    s_values = distal_values(:, 2);
+    F_values = distal_values_raw(:, 1);
+    s_values = distal_values_raw(:, 2);
 
 % Create interpolated grids for s-F space
     [s_grid_F, F_grid] = meshgrid(linspace(min(s_values), max(s_values), 100), ...
