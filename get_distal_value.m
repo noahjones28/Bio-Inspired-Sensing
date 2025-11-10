@@ -7,7 +7,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     ub = [1, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta1]
     plot_residual = true; % enable or disable the live plot
     plot_force = true; % enable or disable the live plot
-    do_offset_correction = false; % apply offset correction to raw data if needed
+    do_offset_correction = true; % apply offset correction to raw data if needed
     sensor_offset = 90e-3; %Adjust the offset between the 6axis f/t sensor and the beam base
     n_perturbations = size(prox_target, 1)-1;
     iteration_counter = 0; % Initialize plotting variables
@@ -22,8 +22,8 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
 
     % Offset correction
     if do_offset_correction && sensor_offset > 0
-        prox_target(2) = prox_target(2)+sensor_offset*prox_target(6); % Ty_base = Ty_sensor+sensor_offset*Fz_sensor
-        prox_target(3) = prox_target(3)-sensor_offset*prox_target(5); % Tz_base = Tz_sensor-sensor_offset*Fy_sensor
+        prox_target(:,2) = prox_target(:,2)+sensor_offset*prox_target(:,6); % Ty_base = Ty_sensor+sensor_offset*Fz_sensor
+        prox_target(:,3) = prox_target(:,3)-sensor_offset*prox_target(:,5); % Tz_base = Tz_sensor-sensor_offset*Fy_sensor
     end
     
     % Check if we have support measurements 
@@ -106,7 +106,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
                 % Force at step i+1 (baseline-referenced)
                 Fi = x(3+i);
                 
-                % Use same s, theta; only force changes implicitly with alpha
+                % Use same s, theta; only force chganges implicitly with alpha
                 x_step = [Fi, x_main(2), x_main(3)];
                 
                 % Forward model at this perturbation command
@@ -124,7 +124,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
                 
             end
             % Combine all residuals
-            lambda = 0.05; % keep between 0.1-0.3
+            lambda = 0.5; % keep between 0.1-0.3
             r = [lambda*r_main, r_support]';
         end
     end
@@ -168,7 +168,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         if ~use_support
             y = get_proximal_value(x, tau_array, true, fig_handle);
         else
-           y = get_proximal_value(x(1:3), tau_array(1,:), true, fig_handle);
+            y = get_proximal_value(x(1:3), tau_array(1,:), true, fig_handle);
         end
     end
     

@@ -1,0 +1,22 @@
+
+DOE(
+	Custom Design,
+	{Add Response( Minimize, "Force Error", ., ., . ),
+	Add Response( Minimize, "Position Error", ., ., . ),
+	Add Response( Minimize, "Angle Error", ., ., . ),
+	Add Factor( Discrete Numeric, {0.3, 0.4, 0.5, 0.6, 0.7, 0.8}, "F", 0 ),
+	Add Factor(
+		Discrete Numeric,
+		{0.06, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18, 0.2},
+		"s",
+		0
+	), Add Factor( Constant, 1, "theta" ), Set Random Seed( 487935 ),
+	Number of Starts( 37039 ), Add Term( {1, 0} ), Add Term( {1, 1} ),
+	Add Potential Term( {1, 2} ), Add Potential Term( {1, 3} ),
+	Add Potential Term( {1, 4} ), Add Potential Term( {1, 5} ), Add Term( {2, 1} ),
+	Add Potential Term( {2, 2} ), Add Potential Term( {2, 3} ),
+	Add Potential Term( {2, 4} ), Add Potential Term( {2, 5} ),
+	Add Term( {1, 1}, {2, 1} ), Set Sample Size( 10 ),
+	Optimality Criterion( "Make I-Optimal Design" ), Simulate Responses( 0 ),
+	Save X Matrix( 0 ), Make Design, Set Run Order( Randomize ), Make Table}
+);

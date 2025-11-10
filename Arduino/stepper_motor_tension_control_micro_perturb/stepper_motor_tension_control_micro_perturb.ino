@@ -32,7 +32,7 @@ HX711_ADC LoadCell3(LOADCELL3_DOUT_PIN, LOADCELL3_SCK_PIN);
 HX711_ADC LoadCell4(LOADCELL4_DOUT_PIN, LOADCELL4_SCK_PIN);
 
 // Perturbation array - define your perturbation sizes here
-const float perturbations[] = {0.6};          
+const float perturbations[] = {0.5, 1.0, 1.5};          
 const int numPerturbations = sizeof(perturbations) / sizeof(perturbations[0]);
 
 // Control variables

@@ -2,8 +2,8 @@ function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_ma
     close all;
     
     % Define parameters
-    lb = [0.1, 0.05, 0];      % lower bounds for [F, s, θ]
-    ub = [0.8, 0.2, 0];  % upper bounds for [F, s, θ]
+    lb = [0.1, 0.05, pi/2];      % lower bounds for [F, s, θ]
+    ub = [0.8, 0.2, pi/2];  % upper bounds for [F, s, θ]
     tau_array_default = [0 0 0]; % default tau array
     tau_array_perturbations = [1 0 0; 0 1 0; 0 0 1];
     %tau_array_perturbations = [];
