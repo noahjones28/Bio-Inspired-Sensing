@@ -1,4 +1,4 @@
-function [proximal_wrench, contact_xyz] = get_proximal_value(distal_values, tau_array, doPlot, fig_handle, S1)
+function [proximal_wrench, contact_xyz, force_vector_global] = get_proximal_value(distal_values, tau_array, doPlot, fig_handle, S1)
     % distal_values [F, s, theta1, theta2, sigma]
     % tau_array [tau1, tau2, tau3]
     
@@ -58,9 +58,10 @@ function [proximal_wrench, contact_xyz] = get_proximal_value(distal_values, tau_
     end
 
     % Get contact position
-    %[~, idx] = max(vecnorm(force_vectors));
-    %contatct_node_idx = force_idxs(idx);
-    %contact_xyz = get_contact_xyz(q, contatct_node_idx);
+    [~, idx] = max(vecnorm(force_vectors));
+    contatct_node_idx = force_idxs(idx);
+    force_vector = force_vectors(:,idx);
+    [contact_xyz, force_vector_global] = get_transformed_force(S1, q, contatct_node_idx, force_vector);
 
 
     % Flip sign of u becuase we want force on robot not on joint  

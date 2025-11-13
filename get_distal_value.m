@@ -65,7 +65,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         end
         % Initial guess
         x0 = (lb + ub)/2;
-        x0(3) = 0;
+        x0(3) = pi/2;
         
         % Create optimization options
         options = optimoptions('lsqnonlin', ...
@@ -73,7 +73,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
             'Display', 'off', ...
             'FunctionTolerance', 1e-10, ...
             'StepTolerance',1e-10, ...
-            'OptimalityTolerance', 1e-16, ...
+            'OptimalityTolerance', 1e-10, ...
             'FiniteDifferenceType', 'forward', ...
             'OutputFcn',@output_function);
         
@@ -87,47 +87,47 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         f_final = resnorm;
     end
     
-    %% Residual
     function r = residual_vec(x)
-        if ~use_support
-            y = get_proximal_value(x, tau_array(1,:));   % returns [Tx,Ty,Tz,Fx,Fy,Fz]
-            r = weight_vector .* (y - prox_target);  % weighted residual vector
-            r = r'; % transpose residual to column vector (lsqnonlin expects a column vector)
-        else
-            x_main = x(1:3); % [F, s, theta]
+    if ~use_support
+        y = get_proximal_value(x, tau_array(1,:));   % baseline pitch
+        r = weight_vector .* (y - prox_target);
+        r = r';
+    else
+        x_main = x(1:3); % [F, s, theta]
+        s = x_main(2);
+        theta = x_main(3);
 
-            % Baseline
-            y_main = get_proximal_value(x_main, tau_array(1,:)); % W_0
-            r_main = weight_vector .* (y_main - prox_target(1,:));
-            r_support = [];
+        % Baseline
+        y_main  = get_proximal_value(x_main, tau_array(1,:)); % W_0
+        r_main = weight_vector .* (y_main - prox_target(1,:));
+        r_support = [];
+
+        for i = 1:n_perturbations
+            % Get force for this pertubation
+            Fi = x(3+i);
+           
+            % Forward model with varying pitch
+            x_step = [Fi, s, theta];
+            y_step = get_proximal_value(x_step, tau_array(i+1,:));
+
+            % Compute predicted & actual ΔW
+            delta_y_predicted = y_step - y_main;
+            delta_y_actual = prox_target(i+1,:) - prox_target(1,:);
             
-            % Loop over perturbation steps (successive differences)
-            for i = 1:n_perturbations
-                % Force at step i+1 (baseline-referenced)
-                Fi = x(3+i);
-                
-                % Use same s, theta; only force chganges implicitly with alpha
-                x_step = [Fi, x_main(2), x_main(3)];
-                
-                % Forward model at this perturbation command
-                y_step = get_proximal_value(x_step, tau_array(i+1,:));   % W_{i+1}
-                
-                % Predicted vs actual successive differences
-                delta_y_predicted = y_step - y_main;                      % ΔW_model(i)
-                delta_y_actual    = prox_target(i+1,:) - prox_target(1,:);% ΔW_meas(i)
+            % Normalize deltas
+            delta_y_predicted_normalized = delta_y_predicted/norm(delta_y_predicted);
+            delta_y_actual_normalized = delta_y_actual/norm(delta_y_actual);
 
-                % Weighted residual for this step (component-wise)
-                r_i = weight_vector .* (delta_y_predicted - delta_y_actual);
-                
-                % Combine for this perturbation
-                r_support = [r_support, r_i];
-                
-            end
-            % Combine all residuals
-            lambda = 0.5; % keep between 0.1-0.3
-            r = [lambda*r_main, r_support]';
+            % Weighted residual
+            r_i = weight_vector .* (delta_y_predicted_normalized- delta_y_actual_normalized);
+            r_support = [r_support, r_i];
         end
+
+        lambda = 1;
+        r = [lambda*r_main, r_support]';
     end
+end
+
     
     %% Output functions
     function stop = output_function(x, optimValues, state)
@@ -189,4 +189,23 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         xlabel(ax, 'Iteration'); ylabel(ax, 'Best Objective Value');
         drawnow;
     end
+end
+
+function delta_phi = angle_in_plane(v0, vi)
+    % Ensure column vectors
+    v0 = v0(:);  vi = vi(:);
+    xhat = [1; 0; 0];
+
+    % Normal to plane spanned by x-axis and baseline
+    n = cross(xhat, v0);
+    n = n / norm(n + 1e-12);
+
+    % Project both vectors into that plane
+    v0_proj = v0 - dot(v0, n) * n;
+    vi_proj = vi - dot(vi, n) * n;
+
+    % Compute in-plane angle
+    v0_proj = v0_proj / norm(v0_proj + 1e-12);
+    vi_proj = vi_proj / norm(vi_proj + 1e-12);
+    delta_phi = acos(max(-1, min(1, dot(v0_proj, vi_proj))));
 end
