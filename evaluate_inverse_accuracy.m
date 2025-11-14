@@ -5,12 +5,12 @@ function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_ma
     lb = [0.1, 0.05, pi/2];      % lower bounds for [F, s, θ]
     ub = [0.8, 0.2, pi/2];  % upper bounds for [F, s, θ]
     tau_array_default = [0 0 0]; % default tau array
-    tau_array_perturbations = [];
+    tau_array_perturbations = [1 0 0];
     %tau_array_perturbations = [];
-    noise_sigma = [0, 0.005, 0.005, 0.07, 0. 0];
+    noise_sigma = [0, 0.0025, 0.0025, 0.035, 0. 0];
     %noise_sigma = [0 0 0 0 0 0];
     inter_perturbation_noise_sigma = noise_sigma ./ 10;  
-    n = 15;             % number of samples
+    n = 10;             % number of samples
     n_noise = 1;        % number of noise samples per point
     n_perturbations = size(tau_array_perturbations, 1);
     plot_results = true;

@@ -74,6 +74,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
             'FunctionTolerance', 1e-10, ...
             'StepTolerance',1e-10, ...
             'OptimalityTolerance', 1e-10, ...
+            'MaxIterations', 40, ...
             'FiniteDifferenceType', 'forward', ...
             'OutputFcn',@output_function);
         
@@ -99,7 +100,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
 
         % Baseline
         y_main  = get_proximal_value(x_main, tau_array(1,:)); % W_0
-        r_main = weight_vector .* (y_main - prox_target(1,:));
+        r_main = norm(y_main) - norm(prox_target(1,:));
         r_support = [];
 
         for i = 1:n_perturbations
@@ -111,20 +112,19 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
             y_step = get_proximal_value(x_step, tau_array(i+1,:));
 
             % Compute predicted & actual ΔW
-            delta_y_predicted = y_step - y_main;
-            delta_y_actual = prox_target(i+1,:) - prox_target(1,:);
+            delta_y_predicted = weight_vector.*(y_step - y_main);
+            delta_y_actual = weight_vector.*(prox_target(i+1,:) - prox_target(1,:));
             
             % Normalize deltas
             delta_y_predicted_normalized = delta_y_predicted/norm(delta_y_predicted);
             delta_y_actual_normalized = delta_y_actual/norm(delta_y_actual);
 
             % Weighted residual
-            r_i = weight_vector .* (delta_y_predicted_normalized- delta_y_actual_normalized);
+            r_i = delta_y_predicted_normalized- delta_y_actual_normalized;
             r_support = [r_support, r_i];
         end
 
-        lambda = 1;
-        r = [lambda*r_main, r_support]';
+        r = [0.3*r_main, r_support]';
     end
 end
 
