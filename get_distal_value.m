@@ -18,7 +18,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     force_scale = 1;   % Typical force magnitude in N
     torque_scale = 0.1;   % Typical torque magnitude in Nm
     weight_vector = [0, 1/torque_scale, 1/torque_scale, 1/force_scale, 0, 0]; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
-    weight_vector = weight_vector / sum(weight_vector); % Normalize so all weights sum to 1
+    channel_filter = [0, 1, 1, 1, 0, 0]; % Use only Ty, Tz, Fx
 
     % Offset correction
     if do_offset_correction && sensor_offset > 0
@@ -71,8 +71,8 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         options = optimoptions('lsqnonlin', ...
             'Algorithm', 'trust-region-reflective', ...
             'Display', 'off', ...
-            'FunctionTolerance', 1e-10, ...
-            'StepTolerance',1e-10, ...
+            'FunctionTolerance', 1e-8, ...
+            'StepTolerance',1e-8, ...
             'OptimalityTolerance', 1e-10, ...
             'MaxIterations', 40, ...
             'FiniteDifferenceType', 'forward', ...
@@ -86,48 +86,53 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         
         % f_final is the sum of squared residuals (resnorm)
         f_final = resnorm;
-    end
+   end
     
     function r = residual_vec(x)
-    if ~use_support
-        y = get_proximal_value(x, tau_array(1,:));   % baseline pitch
-        r = weight_vector .* (y - prox_target);
-        r = r';
-    else
-        x_main = x(1:3); % [F, s, theta]
-        s = x_main(2);
-        theta = x_main(3);
-
-        % Baseline
-        y_main  = get_proximal_value(x_main, tau_array(1,:)); % W_0
-        r_main = norm(y_main) - norm(prox_target(1,:));
-        r_support = [];
-
-        for i = 1:n_perturbations
-            % Get force for this pertubation
-            Fi = x(3+i);
-           
-            % Forward model with varying pitch
-            x_step = [Fi, s, theta];
-            y_step = get_proximal_value(x_step, tau_array(i+1,:));
-
-            % Compute predicted & actual ΔW
-            delta_y_predicted = weight_vector.*(y_step - y_main);
-            delta_y_actual = weight_vector.*(prox_target(i+1,:) - prox_target(1,:));
-            
-            % Normalize deltas
-            delta_y_predicted_normalized = delta_y_predicted/norm(delta_y_predicted);
-            delta_y_actual_normalized = delta_y_actual/norm(delta_y_actual);
-
-            % Weighted residual
-            r_i = delta_y_predicted_normalized- delta_y_actual_normalized;
-            r_support = [r_support, r_i];
+        if ~use_support
+            % Simple mode: weighted residual
+            y = get_proximal_value(x, tau_array(1,:));
+            r = (weight_vector .* (y - prox_target))';
+            return;
         end
+        
+        % Extract baseline parameters and compute baseline wrench
+        x_base = x(1:3);  % [F, s, theta]
+        y_base = get_proximal_value(x_base, tau_array(1,:));
+        
+        % Magnitude residual (force scale)
+        r_main_mag = norm(channel_filter .* y_base) - ...
+                norm(channel_filter .* prox_target(1,:));
 
-        r = [0.3*r_main, r_support]';
+        
+        % ΔW residuals for each perturbation
+        r_perturbation_dirs = [];
+        for i = 1:n_perturbations
+            % Compute perturbed wrench
+            x_perturb = [x(3+i), x_base(2:3)];  % [Fi, s, theta]
+            y_perturb = get_proximal_value(x_perturb, tau_array(i+1,:));
+            
+            % Compute and normalize ΔW
+            delta_pred = weight_vector .* (y_perturb - y_base);
+            delta_meas = weight_vector .* (prox_target(i+1,:) - prox_target(1,:));
+
+            % Compute norms
+            delta_pred_norm = max(norm(delta_pred), 1e-12);
+            delta_meas_norm = max(norm(delta_meas), 1e-12);
+         
+            % Direction of ΔW (normalized)
+            delta_pred_noralized = delta_pred / delta_pred_norm;
+            delta_meas_normalized = delta_meas / delta_meas_norm;
+            perturbation_dir = delta_pred_noralized - delta_meas_normalized; 
+            r_perturbation_dirs = [r_perturbation_dirs, perturbation_dir];
+        end
+        
+        % Weighting
+        A = 0.3;  % magnitude
+        B = 1.0;  % ΔW direction
+ 
+        r = [A*r_main_mag, B*r_perturbation_dirs]';
     end
-end
-
     
     %% Output functions
     function stop = output_function(x, optimValues, state)
