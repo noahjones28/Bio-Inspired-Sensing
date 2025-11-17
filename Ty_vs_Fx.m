@@ -110,8 +110,8 @@ for s = s_range
 end
 
 legend([h1, h2], {'Cylindrical', 'Tapered'}, 'Location', 'best');
-xlabel('Normalized Tz (Tz / (EI/L))');
-ylabel('Normalized Fx (Fx / (EI/L^2))');
+xlabel('Normalized Tz');
+ylabel('Normalized Fx');
 title('Normalized Fx vs Normalized Tz');
 xlim(x_limits);  % ADDED
 grid on;
@@ -144,8 +144,8 @@ for s = s_range
 end
 
 legend([h1, h2], {'Cylindrical', 'Tapered'}, 'Location', 'best');
-xlabel('Normalized Ty (Ty / (EI/L))');
-ylabel('Normalized Fx (Fx / (EI/L^2))');
+xlabel('Normalized Ty');
+ylabel('Normalized Fx');
 title('Normalized Fx vs Normalized Ty');
 xlim(x_limits);  % ADDED
 grid on;

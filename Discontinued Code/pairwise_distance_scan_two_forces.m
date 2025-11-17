@@ -1,4 +1,4 @@
-function mean_R = pairwise_distance_scan_two_forces(n_forces, r_array)
+function mean_R = pairwise_distance_scan_two_forces(n_forces, r_array, probe_forces)
 close all;
 % PAIRWISE_DISTANCE_SCAN - Complete global mapping injectivity test
 %
@@ -11,18 +11,60 @@ close all;
 % Outputs:
 % mean_R - mean of per-point minimum r_ij values  % <-- CHANGED
 
+% Default: no probes (single measurement)
+if nargin < 3 || isempty(probe_forces)
+    probe_forces = [0 0 0; 1 0 0; 0 1 0; 0 0 1];
+end
+
+n_probes = size(probe_forces, 1);
+
 % Update radius
 update_radius(r_array);
 % Generate test force samples
 fprintf('Generating %d force samples...\n', n_forces);
 X = generate_double_force_samples(n_forces);
-% Compute forward model
-fprintf('Computing forward model...\n');
-W = get_proximal_values(X);
+% Compute forward model with probes
+fprintf('Computing forward model with %d probe(s)...\n', n_probes);
+W_stacked = [];
+
+for p = 1:n_probes
+    % Add probe perturbation to tau
+    X_probe = X;
+    X_probe(:, 9:11) = X_probe(:, 9:11) + repmat(probe_forces(p,:), n_forces, 1);
+    
+    % Compute wrench for this probe
+    W_probe = get_proximal_values(X_probe);
+    W_probe = W_probe(:,2:4);
+    
+    % Stack horizontally: each row is [W0, W1, W2, ...]
+    W_stacked = [W_stacked, W_probe];
+end
+
+% If multiple probes, compute differential wrenches [W1-W0, W2-W0, ...]
+if n_probes > 1
+    W0 = W_stacked(:, 1:3);
+    W_diff = [];
+    wrench_dim = size(W0, 2);
+    
+    for p = 2:n_probes
+        idx_start = (p-1)*wrench_dim + 1;
+        idx_end = p*wrench_dim;
+        W_p = W_stacked(:, idx_start:idx_end);
+        W_diff = [W_diff, W_p - W0];
+    end
+    
+    W = W_diff;  % Use differential wrenches
+    fprintf('Using stacked differential wrenches: %d probes → %d features\n', n_probes, size(W,2));
+else
+    W = W_stacked;  % Single measurement, no differential
+    fprintf('Using single measurement (no probes)\n');
+end
+
 % Remove az1, az2, and tau from force samples
 X(:, [4, 8, 9, 10, 11]) = [];
+
 % Normalize both spaces
-% For angles (columns 3,4), convert to sin/cos to handle wraparound
+% For angles, convert to sin/cos to handle wraparound
 X_expanded = [X(:,1:2), sin(X(:,3)), cos(X(:,3)), X(:,4:5), sin(X(:,6)), cos(X(:,6))];
 X_norm = X_expanded ./ std(X_expanded, 0, 1);
 W_norm = W ./ std(W, 0, 1);
@@ -93,9 +135,6 @@ while found < 10 && k <= length(idx)
     fprintf('r_ij = %.6f\n', R_sorted(k));
     fprintf('Force 1: F1=%.3f s1=%.4f el1=%.3f F2=%.3f s2=%.4f el2=%.3f\n', X(i,1), X(i,2), X(i,3), X(i,4), X(i,5), X(i,6));
     fprintf('Force 2: F1=%.3f s1=%.4f el1=%.3f F2=%.3f s2=%.4f el2=%.3f\n', X(j,1), X(j,2), X(j,3), X(j,4), X(j,5), X(j,6));
-    fprintf('Wrench 1: [%s]\n', sprintf('%.4f ', W(i,:)));
-    fprintf('Wrench 2: [%s]\n', sprintf('%.4f ', W(j,:)));
-    
     k = k + 1;
 end
 

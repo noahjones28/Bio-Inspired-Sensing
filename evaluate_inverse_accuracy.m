@@ -1,16 +1,16 @@
-function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_mae_weighted] = evaluate_inverse_accuracy(distal_values)
+function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_mae_weighted, distal_values, estimated_distal_values] = evaluate_inverse_accuracy(distal_values)
     close all;
     
     % Define parameters
-    lb = [0.1, 0.05, pi/2];      % lower bounds for [F, s, θ]
+    lb = [0.1, 0.06, pi/2];      % lower bounds for [F, s, θ]
     ub = [0.8, 0.2, pi/2];  % upper bounds for [F, s, θ]
     tau_array_default = [0 0 0]; % default tau array
-    tau_array_perturbations = [1 0 0];
+    tau_array_perturbations = [];
     %tau_array_perturbations = [];
-    noise_sigma = [0, 0.0025, 0.0025, 0.035, 0. 0];
+    noise_sigma = [0, 0.005, 0.005, 0.07, 0. 0];
     %noise_sigma = [0 0 0 0 0 0];
     inter_perturbation_noise_sigma = noise_sigma ./ 10;  
-    n = 10;             % number of samples
+    n = 50;             % number of samples
     n_noise = 1;        % number of noise samples per point
     n_perturbations = size(tau_array_perturbations, 1);
     plot_results = true;
@@ -103,6 +103,7 @@ function [residuals, overall_mae_F, overall_mae_s, overall_mae_theta, overall_ma
         % Create plots
         plot_error_heatmaps(distal_values_raw, mean_abs_errors, mean_abs_errors_weighted, ...
                             overall_mae_F, overall_mae_s, overall_mae_theta, overall_mae_weighted);
+        plot_predictions_vs_truth(distal_values, estimated_distal_values, overall_mae_F, overall_mae_s, overall_mae_theta);
     end
 
     % Weight all errors (not just means)
@@ -189,4 +190,51 @@ function plot_error_heatmaps(distal_values_raw, mean_abs_errors, mean_abs_errors
     xlabel('s (position)');
     ylabel('F (force)');
     title(sprintf('MAE in θ\nOverall: %.4f', overall_mae_theta));
+end
+
+function plot_predictions_vs_truth(distal_values, estimated_distal_values, overall_mae_F, overall_mae_s, overall_mae_theta)
+    % Create 3-panel scatter plot: predictions vs ground truth
+    figure;
+    
+    % F panel
+    subplot(1, 3, 1);
+    scatter(distal_values(:, 1), estimated_distal_values(:, 1), 70, 'filled');
+    hold on;
+    plot([min(distal_values(:, 1)), max(distal_values(:, 1))], ...
+         [min(distal_values(:, 1)), max(distal_values(:, 1))], 'k--', 'LineWidth', 1.5);
+    hold off;
+    xlabel('Ground Truth F', 'FontSize', 14, 'FontWeight', 'bold');
+    ylabel('Predicted F', 'FontSize', 14, 'FontWeight', 'bold');
+    title(sprintf('F (MAE: %.4f)', overall_mae_F), 'FontSize', 14, 'FontWeight', 'bold');
+    axis equal tight;
+    grid on;
+    set(gca, 'FontSize', 12, 'FontWeight', 'bold');
+    
+    % s panel
+    subplot(1, 3, 2);
+    scatter(distal_values(:, 2), estimated_distal_values(:, 2), 70, 'filled');
+    hold on;
+    plot([min(distal_values(:, 2)), max(distal_values(:, 2))], ...
+         [min(distal_values(:, 2)), max(distal_values(:, 2))], 'k--', 'LineWidth', 1.5);
+    hold off;
+    xlabel('Ground Truth s', 'FontSize', 14, 'FontWeight', 'bold');
+    ylabel('Predicted s', 'FontSize', 14, 'FontWeight', 'bold');
+    title(sprintf('s (MAE: %.4f)', overall_mae_s), 'FontSize', 14, 'FontWeight', 'bold');
+    axis equal tight;
+    grid on;
+    set(gca, 'FontSize', 12, 'FontWeight', 'bold');
+    
+    % θ₁ panel
+    subplot(1, 3, 3);
+    scatter(distal_values(:, 3), estimated_distal_values(:, 3), 70, 'filled');
+    hold on;
+    plot([min(distal_values(:, 3)), max(distal_values(:, 3))], ...
+         [min(distal_values(:, 3)), max(distal_values(:, 3))], 'k--', 'LineWidth', 1.5);
+    hold off;
+    xlabel('Ground Truth \theta_1', 'FontSize', 14, 'FontWeight', 'bold');
+    ylabel('Predicted \theta_1', 'FontSize', 14, 'FontWeight', 'bold');
+    title(sprintf('\\theta_1 (MAE: %.4f)', overall_mae_theta), 'FontSize', 14, 'FontWeight', 'bold');
+    axis equal tight;
+    grid on;
+    set(gca, 'FontSize', 12, 'FontWeight', 'bold');
 end
