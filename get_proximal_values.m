@@ -1,4 +1,4 @@
-function proximal_values = get_proximal_values(distal_values)
+function proximal_values = get_proximal_values(distal_values, S)
     % Create a parallel pool if one isn't already open
     if isempty(gcp('nocreate'))
         localCluster = parcluster('Noah12');
@@ -28,7 +28,11 @@ function proximal_values = get_proximal_values(distal_values)
     for index = 1:num_samples
         distal_value = distal_values_cell{index};  % Pass entire row
         tau_array = tau_arrays(index, :);
-        futures(index) = parfeval(@get_proximal_value, 1, distal_value, tau_array);
+        if nargin < 2 
+            futures(index) = parfeval(@get_proximal_value, 1, distal_value, tau_array);
+        else
+            futures(index) = parfeval(@get_proximal_value, 1, distal_value, tau_array, false, false, S);
+        end
     end
     
     % Initialize results as matrix

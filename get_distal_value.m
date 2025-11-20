@@ -17,8 +17,8 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     % Weightings and Normalization
     force_scale = 1;   % Typical force magnitude in N
     torque_scale = 0.1;   % Typical torque magnitude in Nm
-    weight_vector = [0, 1/torque_scale, 1/torque_scale, 1/force_scale, 0, 0]; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
-    channel_filter = [0, 1, 1, 1, 0, 0]; % Use only Ty, Tz, Fx
+    weight_vector = [1/torque_scale, 1/torque_scale, 1/torque_scale, 1/force_scale, 1/force_scale, 1/force_scale]; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
+    channel_filter = [1, 1, 1, 1, 1, 1]; % Use only Ty, Tz, Fx
 
     % Offset correction
     if do_offset_correction && sensor_offset > 0
