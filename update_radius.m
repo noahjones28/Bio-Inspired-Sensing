@@ -33,6 +33,22 @@ function S = update_radius(r, mode, do_save)
         catch ME
             error('Failed to change beam radii: %s', ME.message);
         end
+    
+    elseif mode == "elliptical tapered"
+        try
+            load("my_robots\my_robot_elliptical_tapered_3tendon\my_robot.mat");
+            normalized_grad_a = r(3)-r(1);
+            normalized_grad_b = r(4)-r(2);
+            S1.VLinks(2).a{1} = @(X1)X1.*normalized_grad_a+r(1);
+            S1.VLinks(2).b{1} = @(X1)X1.*normalized_grad_b+r(2);
+            S1.CVRods{2}(1+1).UpdateAll;
+            S1 = S1.Update();
+            if do_save
+                save('my_robot.mat','S1')
+            end
+        catch ME
+            error('Failed to change beam radii: %s', ME.message);
+        end
         
     elseif mode == "multi division"
         try

@@ -18,6 +18,11 @@ function proximal_values = get_proximal_values(distal_values, S)
             distal_values_cell{i} = distal_values(i, 1:3);
             tau_arrays = distal_values(:, 4:end); 
         end
+    elseif size(distal_values,2) == 11
+        for i = 1:numRows
+            distal_values_cell{i} = [distal_values(i, 1:4); distal_values(i, 5:8)];
+            tau_arrays = distal_values(:, 9:end); 
+        end
     end
     
     % Initialize futures array
