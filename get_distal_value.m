@@ -3,11 +3,11 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     
     %% Setup
     % Properties
-    lb = [0.05, 0.01, 0]; % Lower bounds for estimation of [F,s,theta1]
-    ub = [1, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta1]
+    lb = [0.1, 0.02, 0, 0.1, 0.02, 0]; % Lower bounds for estimation of [F,s,theta1]
+    ub = [1, 0.2, 2*pi, 1, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta1]
     plot_residual = true; % enable or disable the live plot
     plot_force = true; % enable or disable the live plot
-    do_offset_correction = true; % apply offset correction to raw data if needed
+    do_offset_correction = false; % apply offset correction to raw data if needed
     sensor_offset = 90e-3; %Adjust the offset between the 6axis f/t sensor and the beam base
     n_perturbations = size(prox_target, 1)-1;
     iteration_counter = 0; % Initialize plotting variables
@@ -49,7 +49,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     [x_final, f_final] = single_force_optimization();
 
     fprintf('Force optimization complete!\n')
-    fprintf('[F, s, θ1] = ');
+    fprintf('[F1, s1, θ1, F2, s2, θ2] =\n');
     disp(x_final)
     fprintf('Final residual norm = %.6e\n',f_final);
     distal_value = x_final;
@@ -63,35 +63,81 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
             lb = [lb, repmat(lb(1), 1, n_perturbations)];
             ub = [ub, repmat(ub(1), 1, n_perturbations)];
         end
-        % Initial guess
-        x0 = (lb + ub)/2;
-        x0(3) = pi/2;
         
-        % Create optimization options
-        options = optimoptions('lsqnonlin', ...
+        n_vars = length(lb);
+        
+        %% Stage 1: Latin Hypercube Sampling (Global Exploration)
+        n_samples = 400;
+        rng(1234);  % For reproducibility
+        
+        % Generate LHS samples in [0, 1]^n
+        lhs_samples = lhsdesign(n_samples, n_vars);
+        
+        % Scale to actual bounds
+        X_lhs = lb + lhs_samples .* (ub - lb);
+        
+        % Evaluate objective on all samples
+        residuals = zeros(n_samples, 1);
+        for i = 1:n_samples
+            r = residual_vec(X_lhs(i, :));
+            residuals(i) = sum(r.^2);  % Sum of squared residuals
+        end
+        
+        %% Stage 2: Select Top K Candidates
+        K = 10;  % Number of top candidates (between 10-20)
+        [~, sorted_idx] = sort(residuals, 'ascend');
+        top_k_idx = sorted_idx(1:K);
+        start_points = X_lhs(top_k_idx, :);
+        
+        %% Stage 3: MultiStart Least Squares
+        % Configure lsqnonlin options
+        lsq_options = optimoptions('lsqnonlin', ...
             'Algorithm', 'trust-region-reflective', ...
             'Display', 'off', ...
             'FunctionTolerance', 1e-8, ...
-            'StepTolerance',1e-8, ...
+            'StepTolerance', 1e-8, ...
             'OptimalityTolerance', 1e-10, ...
-            'MaxIterations', 40, ...
+            'MaxIterations', 50, ...
             'FiniteDifferenceType', 'forward', ...
-            'OutputFcn',@output_function);
+            'OutputFcn', @output_function);
         
-        % Run single optimization
-        [x_final, resnorm, exitflag, output] = lsqnonlin(@(x) residual_vec(x), x0, lb, ub, options);
+        % Create optimization problem for MultiStart
+        problem = createOptimProblem('lsqnonlin', ...
+            'objective', @residual_vec, ...
+            'x0', start_points(1, :), ...
+            'lb', lb, ...
+            'ub', ub, ...
+            'options', lsq_options);
         
-        % remove supporting measurments from x_final
-        x_final = x_final(1:end-n_perturbations);
+        % Create custom start points from LHS top-K
+        custom_starts = CustomStartPointSet(start_points);
         
-        % f_final is the sum of squared residuals (resnorm)
-        f_final = resnorm;
-   end
+        % Configure MultiStart
+        ms = MultiStart('Display', 'iter', ...
+            'UseParallel', false, ...
+            'StartPointsToRun', 'all');
+        
+        % Run MultiStart with custom start points
+        [x_final, f_final] = run(ms, problem, custom_starts);
+        
+        %% Post-processing
+        % Remove supporting measurements from x_final
+        x_final = x_final(1:end - n_perturbations);
+        
+        % Wrap theta values to [0, 2*pi]
+        x_final(3) = mod(x_final(3), 2*pi);
+        x_final(6) = mod(x_final(6), 2*pi);
+        
+        % Ensure force 1 is most distal force
+        if x_final(2) < x_final(5)
+            x_final = [x_final(4:end), x_final(1:3)];
+        end
+    end
     
     function r = residual_vec(x)
         if ~use_support
             % Simple mode: weighted residual
-            y = get_proximal_value(x, tau_array(1,:));
+            y = get_proximal_value([x(1:3);x(4:6)], tau_array(1,:));
             r = (weight_vector .* (y - prox_target))';
             return;
         end
@@ -169,9 +215,12 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     end
     
     function update_force_plot(x, fig_handle)
+        % Wrap theta values to [0, 2*pi]
+        x(3) = mod(x(3), 2*pi);
+        x(6) = mod(x(6), 2*pi);
         % Get proximal values with plotting enabled
         if ~use_support
-            y = get_proximal_value(x, tau_array, true, fig_handle);
+            y = get_proximal_value([x(1:3);x(4:6)], tau_array, true, fig_handle);
         else
             y = get_proximal_value(x(1:3), tau_array(1,:), true, fig_handle);
         end
@@ -194,23 +243,4 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         xlabel(ax, 'Iteration'); ylabel(ax, 'Best Objective Value');
         drawnow;
     end
-end
-
-function delta_phi = angle_in_plane(v0, vi)
-    % Ensure column vectors
-    v0 = v0(:);  vi = vi(:);
-    xhat = [1; 0; 0];
-
-    % Normal to plane spanned by x-axis and baseline
-    n = cross(xhat, v0);
-    n = n / norm(n + 1e-12);
-
-    % Project both vectors into that plane
-    v0_proj = v0 - dot(v0, n) * n;
-    vi_proj = vi - dot(vi, n) * n;
-
-    % Compute in-plane angle
-    v0_proj = v0_proj / norm(v0_proj + 1e-12);
-    vi_proj = vi_proj / norm(vi_proj + 1e-12);
-    delta_phi = acos(max(-1, min(1, dot(v0_proj, vi_proj))));
 end

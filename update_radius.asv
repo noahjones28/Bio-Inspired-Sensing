@@ -69,14 +69,17 @@ function S = update_radius(r, mode, do_save)
     elseif mode == "elliptical multi division"
         try
             load("my_robots\my_robot_elliptical_multi_3tendon\my_robot.mat");
-            for i = 1:size(r,2)
-                normalized_grad_a = r(3,i)-r(1,i);
-                normalized_grad_b = r(4,i)-r(2,i);
-                S1.VLinks(2).a{i} = @(X1)X1.*normalized_grad_a+r(1,i);
-                S1.VLinks(2).b{i} = @(X1)X1.*normalized_grad_b+r(2,i);
+            for i = 1:length(r)
+                S1.VLinks(2).r{i} = @(X1) r(i);
                 S1.CVRods{2}(1+i).UpdateAll;
                 S1 = S1.Update();
             end
+            normalized_grad_a = r(3)-r(1);
+            normalized_grad_b = r(4)-r(2);
+            S1.VLinks(2).a{1} = @(X1)X1.*normalized_grad_a+r(1);
+            S1.VLinks(2).b{1} = @(X1)X1.*normalized_grad_b+r(2);
+            S1.CVRods{2}(1+1).UpdateAll;
+            S1 = S1.Update();
             if do_save
                 save('my_robot.mat','S1')
             end

@@ -14,7 +14,10 @@ close all;
 % Update radius
 %update_radius([1.5e-3, 1.125e-3], "tapered")
 %update_radius([1.5e-3, 1.125e-3, 1.5e-3, 1.125e-3], "elliptical tapered")
-update_radius(1.5e-3, "cylindrical")
+%a = 1.6e-3*ones(1,20);
+%a([5,10,15]) = 1.2e-3;
+%update_radius(a, "multi division")
+%update_radius(1.5e-3, "cylindrical")
 % Generate test force samples
 fprintf('Generating %d force samples...\n', n_forces);
 X = generate_double_force_samples(n_forces);
@@ -32,12 +35,12 @@ F_scale = 0.8;   % 1.0 or your upper bound
 s_scale = 0.2;      % beam length or max s
 X_norm = [X(:,1)/F_scale, X(:,2)/s_scale, sin(X(:,3)), cos(X(:,3)), X(:,4)/F_scale, X(:,5)/s_scale, sin(X(:,6)), cos(X(:,6))];
 
-F_scale_W = max(abs(W(:,1:3)), [], 'all');   % forces
-M_scale_W = max(abs(W(:,4:6)), [], 'all');   % moments
+M_scale_W = max(abs(W(:,1:3)), [], 'all');   % moments
+F_scale_W = max(abs(W(:,4:6)), [], 'all');   % forces
 
 W_norm = W;
-W_norm(:,1:3) = W(:,1:3) / F_scale_W;
-W_norm(:,4:6) = W(:,4:6) / M_scale_W;
+W_norm(:,1:3) = W(:,1:3) / M_scale_W;
+W_norm(:,4:6) = W(:,4:6) / F_scale_W;
 
 % Compute pairwise distances
 fprintf('Computing pairwise distances...\n');
@@ -94,15 +97,15 @@ else
     fprintf('\n✓ Mapping appears globally injective in sampled region\n');
 end
 
-% Find 10 worst pairs with distance threshold (fast version)
-fprintf('\n=== 10 Force Pairs with Lowest r_{ij} (distant inputs only) ===\n');
+% Find 20 worst pairs with distance threshold (fast version)
+fprintf('\n=== 20 Force Pairs with Lowest r_{ij} (distant inputs only) ===\n');
 fprintf('Threshold: ΔF>0.05 OR Δs>0.01 OR Δel>3 OR Δaz>3\n');
 
 [R_sorted, idx] = sort(vals, 'ascend');
 found = 0;
 k = 1;
 
-while found < 10 && k <= length(idx)
+while found < 20 && k <= length(idx)
     [i, j] = ind2sub_triu(N, idx(k));
     
     found = found + 1;
@@ -110,6 +113,8 @@ while found < 10 && k <= length(idx)
     fprintf('r_ij = %.6f\n', R_sorted(k));
     fprintf('Force 1: F1=%.3f s1=%.4f el1=%.3f F2=%.3f s2=%.4f el2=%.3f\n', X(i,1), X(i,2), X(i,3), X(i,4), X(i,5), X(i,6));
     fprintf('Force 2: F1=%.3f s1=%.4f el1=%.3f F2=%.3f s2=%.4f el2=%.3f\n', X(j,1), X(j,2), X(j,3), X(j,4), X(j,5), X(j,6));
+    fprintf('W1 = [Tx=%.4f, Ty=%.4f, Tz=%.4f, Fx=%.4f, Fy=%.4f, Fz=%.4f]\n', W(i,1), W(i,2), W(i,3), W(i,4), W(i,5), W(i,6));
+    fprintf('W2 = [Tx=%.4f, Ty=%.4f, Tz=%.4f, Fx=%.4f, Fy=%.4f, Fz=%.4f]\n', W(j,1), W(j,2), W(j,3), W(j,4), W(j,5), W(j,6));
     k = k + 1;
 end
 
@@ -212,9 +217,9 @@ el1 = scale(U1(:,3), el_range);
 el2 = scale(U2(:,3), el_range);
 az1 = pi/2*ones(n_forces, 1);
 az2 = pi/2*ones(n_forces, 1);
-tau = zeros(n_forces, 3);
+tau = repmat([0, 0 0], size(F1, 1), 1);
 X = [F1 s1 el1 az1 F2 s2 el2 az2 tau];
 
 % Filter forces that are too close:
-X = X(abs(X(:,2) - X(:,6)) >= 0.06, :);
+%X = X(abs(X(:,2) - X(:,6)) >= 0.06, :);
 end

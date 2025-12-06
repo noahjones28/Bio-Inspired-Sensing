@@ -18,7 +18,7 @@ for i = 1:num_samples
         futures(i) = parfeval(@get_distal_value, 2, prox_target, tau_array);
 end
 % Initialize distal_values
-    distal_values = zeros(num_samples, 4); % distal_values [F,s,theta] + f_final
+    distal_values = zeros(num_samples, 7); % distal_values [F,s,theta] + f_final
 % Fetch outputs for all futures
     fprintf('Processing %d samples...\n', num_samples);
 for i = 1:length(futures)
