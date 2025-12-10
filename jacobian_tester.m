@@ -10,22 +10,22 @@ for i = 1:n
     F_actual = forces(i, :);
     
     % Forward then inverse
-    W_sim = get_proximal_value([F_actual(1:3); F_actual(4:6)]);
-    F_estimated = get_distal_value(W_sim, [0 0 0]);
+    %W_sim = get_proximal_value([F_actual(1:3); F_actual(4:6)]);
+    %F_estimated = get_distal_value(W_sim, [0 0 0]);
     
     % Store error
-    errors(i, :) = abs(F_estimated(:)' - F_actual);
+    %errors(i, :) = abs(F_estimated(:)' - F_actual);
     
     % Jacobian and singular values
     J = compute_jacobian(F_actual);
     % Get SVD
-    [U, S, V] = svd(J);
+    [U, S, V] = svd(J{1});
     sigma_mins(i) = S(end);
 end
 % Print error matrix
 fprintf('Error matrix:\n');
 fprintf('%10s %10s %10s %10s %10s %10s\n', 'F1', 's1', 'theta1', 'F2', 's2', 'theta2');
-fprintf('%10.4f %10.4f %10.4f %10.4f %10.4f %10.4f\n', errors');
+%fprintf('%10.4f %10.4f %10.4f %10.4f %10.4f %10.4f\n', errors');
 
 % Print results
 fprintf('Mean of min singular values: %.6e\n\n', mean(sigma_mins));
@@ -35,9 +35,9 @@ fprintf('  s:     %.6f\n', mean([errors(:,2); errors(:,5)]));
 fprintf('  theta: %.6f\n', mean([errors(:,3); errors(:,6)]));
 
 function X = get_test_forces()
-    n_forces = 20;
+    n_forces = 54;
     F_range = [0.3, 0.8];
-    s_range = [0.04, 0.20];
+    s_range = [0.02, 0.20];
     theta_range = [0, 2*pi];
     scale = @(u,r) r(1) + u.*diff(r);
     rng(1234);
@@ -52,7 +52,7 @@ function X = get_test_forces()
     X = [F1 s1 theta1 F2 s2 theta2];
 
     % Filter forces that are too close:
-    X = X(abs(X(:,2) - X(:,5)) >= 0.06, :);
+    X = X(abs(X(:,2) - X(:,5)) >= 0.1, :);
 
     %flip so large s is first
     for i = 1:size(X,1)

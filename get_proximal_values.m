@@ -18,10 +18,10 @@ function proximal_values = get_proximal_values(distal_values, S)
             distal_values_cell{i} = distal_values(i, 1:3);
             tau_arrays = distal_values(:, 4:end); 
         end
-    elseif size(distal_values,2) == 11
+    elseif size(distal_values,2) == 9
         for i = 1:numRows
-            distal_values_cell{i} = [distal_values(i, 1:4); distal_values(i, 5:8)];
-            tau_arrays = distal_values(:, 9:end); 
+            distal_values_cell{i} = [distal_values(i, 1:3); distal_values(i, 4:6)];
+            tau_arrays = distal_values(:, 7:end); 
         end
     end
     

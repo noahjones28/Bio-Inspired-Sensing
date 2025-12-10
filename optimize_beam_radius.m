@@ -1,10 +1,8 @@
-function optimize_beam_radius(design)
+function optimize_beam_radius(design, n_forces, n_samples)
 close all;
-global current_mean_R; % Add global variable
-current_mean_R = 0;
 
-% OPTIMIZE_RADIUS_BILIPSCHITZ_MINIMAL - Minimal bi-Lipschitz optimization
-%   Uses conservative bi-Lipschitz bounds to guarantee global injectivity
+global current_mean; % Add global variable
+current_mean = 0;
 
     %% SETUP
     if design == "tapered"
@@ -19,18 +17,47 @@ current_mean_R = 0;
         % Bounds
         lb = 1.25e-3*ones(1,20);
         ub = 2e-3*ones(1,20);
+    elseif design == "elliptical twisted"
+        % Load elliptical twisted robot
+        load("my_robots\my_robot_elliptical_twisted_3tendon\my_robot.mat");
+        % Bounds
+        lb = [1.25e-3, 1.25e-3, 1e-3, 1e-3, 0]; % [r_major_1,r_minor_1,r_major_2,r_minor_2, pre_twist]
+        ub = [4e-3, 4e-3, 4e-3, 4e-3, 100];
+    elseif design == "elliptical multi division"
+        % Load elliptical twisted robot
+        load("my_robots\my_robot_elliptical_multi_3tendon\my_robot.mat");
+        % Bounds
+        lb = 1.25e-3*ones(1,40);
+        ub = 4e-3*ones(1,40);
     else
         error("invalid design!")
     end
-    
-    % number of force magnitudes F and positions s
-    n = 10;
 
     % Generate samples ONCE at the beginning
-    force_samples = generate_test_forces(n);
+    force_samples = generate_test_forces(n_forces,n_samples);
 
-    % Initial guess
-    x0 = (lb+ub)/2;
+    % Initial guess using LHS sampling
+    n_init = 500;
+    rng(1234);
+    n_vars = length(lb);
+    U = lhsdesign(n_init, n_vars);
+    X_init = lb + U .* (ub - lb);  % Scale to bounds
+    
+    % Evaluate residual at all sample points
+    resnorms = zeros(n_init, 1);
+    for i = 1:n_init
+        r = residual_func(X_init(i,:), force_samples, design);
+        resnorms(i) = sum(r.^2);
+        if mod(i,50) == 0
+            fprintf('LHS sampling: %d/%d\n', i, n_init);
+        end
+    end
+    
+    % Select best point as initial guess
+    [~, best_idx] = min(resnorms);
+    x0 = X_init(best_idx, :);
+    fprintf('Best initial point (resnorm = %.6g):\n', resnorms(best_idx));
+    disp(x0);
     
     %% OPTIMIZATION
     options = optimoptions('lsqnonlin', ...
@@ -41,72 +68,89 @@ current_mean_R = 0;
         'OptimalityTolerance', 1e-10, ...
         'MaxIterations', 40, ...
         'FiniteDifferenceType', 'forward', ...
+         'TypicalX', x0, ...
         'OutputFcn', @custom_output);
     
     % Run optimization with lsqnonlin
     [x_final, resnorm, residual, exitflag, output] = lsqnonlin(@(x) residual_func(x, force_samples, design), ...
         x0, lb, ub, options);
     
-    disp('Optimal radii (mm):');
-    disp(x_final * 1000);
+    disp('Optimal design parameters:');
+    disp(x_final)
     disp('Final resnorm:');
     disp(resnorm);
-    disp('Final mean_R:');
-    disp(current_mean_R);
+    disp('Final mean:');
+    disp(current_mean);
 end
 
 %% RESIDUAL FUNCTION
 function residual = residual_func(x, force_samples, design)
-    global current_mean_R; % Access global variable
-    
+    global current_mean; % Access global variable
+
+    x = [x(1:20);x(21:end);x(1:20);x(21:end)];
+
     % Update radius based on design variables
     S = update_radius(x, design, false);
     
-    % Compute Rij score
-    [mean_R, local_rij] = pairwise_distance_scan_3(force_samples, S);
+    % Storage
+    sigma_mins = zeros(size(force_samples,1), 1);
+
+    % Jacobian and singular values
+    J_cell = compute_jacobian(force_samples, S);
+    for i=1:size(J_cell,1)
+        % Get SVD
+        sigma = svd(J_cell{i});
+        sigma_mins(i) = sigma(end);
+    end
     
-    % Store mean_R for output function
-    current_mean_R = mean_R;
+    % Store mean for output function
+    current_mean = mean(sigma_mins);
     
-    % Maximize 1/alpha instead of minimize alpha
-    inv_local_rij = 1 ./ local_rij;
-    
-    residual = inv_local_rij;
+    residual = 1./sigma_mins;
 end
 
 %% FORCE SAMPLE GENERATION
-function force_samples = generate_test_forces(n)
-    % Ranges
-    F_range = [0.1, 1.0];
-    s_range = [0.02 0.20];  % Discrete values from 0.02 to 0.2
-    theta = 0;
-    tau_array = [0 0 0];
-    
-    % Create the parameter arrays
-    F_array = linspace(F_range(1), F_range(2), n);
-    s_array = linspace(s_range(1), s_range(2), n);
-    
-    % Generate all combinations using meshgrid
-    [F_grid, s_grid] = meshgrid(F_array, s_array);
-    n_samples = numel(F_grid);
-    
-    % Reshape into an N×2 array where each row is a combination
-    force_samples = [F_grid(:), s_grid(:), repmat(theta,n_samples,1), repmat(tau_array, n_samples, 1)];
+function force_samples = generate_test_forces(n_forces, n_samples)
+    F_range = [0.3, 0.8];
+    s_range = [0.04, 0.20];
+    theta_range = [0, 2*pi];
+    scale = @(u,r) r(1) + u.*diff(r);
+    rng(1234);
+    if n_forces == 1
+        U = lhsdesign(n_samples, 3);
+        F = scale(U(:,1), F_range);
+        s = scale(U(:,2), s_range);
+        theta = scale(U(:,3), theta_range);
+        force_samples = [F s theta];
+    elseif n_forces == 2
+        U1 = lhsdesign(n_samples, 3);
+        U2 = lhsdesign(n_samples, 3);
+        F1 = scale(U1(:,1), F_range);
+        F2 = scale(U2(:,1), F_range);
+        s1 = scale(U1(:,2), s_range);
+        s2 = scale(U2(:,2), s_range);
+        theta1 = scale(U1(:,3), theta_range);
+        theta2 = scale(U2(:,3), theta_range);
+        force_samples = [F1 s1 theta1 F2 s2 theta2];
+
+        % Filter forces that are too close:
+        force_samples = force_samples(abs(force_samples(:,2) - force_samples(:,5)) >= 0.1, :);
+    end
 end
 
 %% CUSTOM OUTPUT FUNCTION
 function stop = custom_output(x, optimValues, state, varargin)
-    global current_mean_R; % Access global variable
+    global current_mean; % Access global variable
     stop = false;
-    persistent iter_data best_series best_x best_resnorm best_mean_R mean_R_series
+    persistent iter_data best_series best_x best_resnorm best_mean mean_series
     
     if strcmp(state,'init')
         iter_data = [];
         best_series = [];
         best_x = [];
         best_resnorm = Inf;
-        best_mean_R = 0;
-        mean_R_series = [];
+        best_mean = 0;
+        mean_series = [];
         figure;
         set(gcf, 'Position', [100, 100, 1200, 600]);
         
@@ -117,16 +161,16 @@ function stop = custom_output(x, optimValues, state, varargin)
         if optimValues.resnorm < best_resnorm
             best_resnorm = optimValues.resnorm;
             best_x = x;
-            best_mean_R = current_mean_R; % Store best mean_R
+            best_mean = current_mean; % Store best mean
         end
         best_series(end+1) = best_resnorm;
-        mean_R_series(end+1) = current_mean_R;
+        mean_series(end+1) = current_mean;
         
         % Plot best objective vs iteration
         subplot(2,1,1);
         plot(iter_data, best_series, '-o', 'LineWidth', 1.5, 'MarkerSize', 6, 'MarkerFaceColor', 'b');
-        legend(sprintf('Best resnorm: %.6g (Max metric: %.6g) | Best mean_R: %.6g', ...
-            best_resnorm, sqrt(best_resnorm), best_mean_R), 'Location', 'best');
+        legend(sprintf('Best resnorm: %.6g (Max metric: %.6g) | Best mean_sigma: %.6e', ...
+            best_resnorm, sqrt(best_resnorm), best_mean), 'Location', 'best');
         xlabel('Iteration');
         ylabel('Best Resnorm So Far');
         title('lsqnonlin Progress');
@@ -138,9 +182,9 @@ function stop = custom_output(x, optimValues, state, varargin)
         ylim([0, max(best_x*1000)+1]);
         xlabel('Design Variable');
         ylabel('Radius (mm)');
-        title(sprintf('Best Variables (Iter %d) | mean_R: %.6g', optimValues.iteration, best_mean_R));
+        title(sprintf('Best Variables (Iter %d) | mean : %.6e', optimValues.iteration, best_mean));
         grid on;
-        text(1:numel(best_x), best_x*1000+0.25, compose('%.2f', best_x*1000), ...
+        text(1:numel(best_x), best_x*1000+0.25, compose('%.3e', best_x), ...
             'HorizontalAlignment', 'center', 'FontWeight', 'bold');
         drawnow;
     end

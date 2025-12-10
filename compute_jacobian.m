@@ -1,46 +1,74 @@
-function J_normalized = compute_jacobian(p, eps)
+function J_normalized = compute_jacobian(p, S1)
 % Computes normalized Jacobian of get_proximal_values using central difference
 %
 % Input:
-%   p   - [F1, s1, theta1, F2, s2, theta2]
-%   eps - finite difference step (optional, default 1e-6)
+%   p   - Nx6 array [F1, s1, theta1, F2, s2, theta2; ...]
+%   S   - ...
 %
 % Output:
-%   J_normalized - 6x6 normalized Jacobian
+%   J_normalized - cell array of N 6x6 normalized Jacobians
 
 if nargin < 2
-    eps = 1e-3;
+    load("my_robot.mat");
 end
 
-% Hardcoded scales
-L = 0.2;
-param_scales = [1; L; 2*pi; 1; L; 2*pi];
-wrench_scales = [0.1; 0.1; 0.1; 1; 1; 1];
+% Step size
+eps = 1e-3;
 
-p = p(:)';
-J_raw = zeros(6, 6);
+% SENSOR RMSE (experimental)
+noise_Tx = 0.00158; noise_Ty = 0.0125; noise_Tz = 0.00906;
+noise_Fx = 0.0525; noise_Fy = 0.0564; noise_Fz = 0.0813;
 
-for j = 1:6
-    step = eps * param_scales(j);  % scale-aware step
+% DESIGN SPECS (Operating Ranges)
+range_force = 1.0; % Newtons (Max expected force)
+range_pos = 0.2;    % Meters (Length of beam)
+range_theta = 2*pi; % Radians (Max angle)
+
+% SCALING
+% Output Scale: We want 1.0 to represent "1 unit of Noise"
+wrench_scales = [noise_Tx; noise_Ty; noise_Tz; ...
+                 noise_Fx;  noise_Fy;  noise_Fz];
+% Input Scale: We want 1.0 to represent "Full Scale Input"
+param_scales = [range_force; range_pos; range_theta; ...
+                range_force; range_pos; range_theta];
+
+% Storage
+N = size(p, 1);
+J_normalized = cell(N, 1);
+steps = eps * param_scales';  % 1x6
+
+% Build all perturbations for all parameter sets at once
+% Each parameter set needs 12 rows (6 plus + 6 minus)
+all_forces = zeros(N * 12, 9);
+
+for i = 1:N
+    p_i = p(i, :);
+    base_idx = (i - 1) * 12;
     
-    p_plus = p;
-    p_minus = p;
-
-    p_plus(j) = p(j) + step;
-    p_minus(j) = p(j) - step;
-
-    W_plus = get_proximal_value([p_plus(1:3);p_plus(4:6)]);
-    W_minus = get_proximal_value([p_minus(1:3);p_minus(4:6)]);
-
-    J_raw(:, j) = (W_plus(:) - W_minus(:)) / (2 * step);
+    % Plus perturbations (rows 1-6)
+    all_forces(base_idx + (1:6), 1:6) = repmat(p_i, 6, 1) + diag(steps);
+    
+    % Minus perturbations (rows 7-12)
+    all_forces(base_idx + (7:12), 1:6) = repmat(p_i, 6, 1) - diag(steps);
 end
 
+% Single call to get_proximal_values
+all_W = get_proximal_values(all_forces, S1);
 
-% Normalize
-J_normalized = diag(1 ./ wrench_scales) * J_raw * diag(param_scales);
-
-sv = svd(J_normalized);
-sigma_min = sv(end);
-fprintf('Smallest singular value: %.6e\n', sigma_min);
-
+% Extract results and compute Jacobians
+for i = 1:N
+    base_idx = (i - 1) * 12;
+    
+    W_plus = all_W(base_idx + (1:6), :);
+    W_minus = all_W(base_idx + (7:12), :);
+    
+    % Compute raw Jacobian
+    J_raw = (W_plus - W_minus)' ./ (2 * steps);
+    
+    % Normalize
+    J_normalized{i} = diag(1 ./ wrench_scales) * J_raw * diag(param_scales);
+    
+    sv = svd(J_normalized{i});
+    fprintf('Smallest singular value (%d): %.6e\n', i, sv(end));
+end
 end
