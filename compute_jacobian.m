@@ -15,9 +15,8 @@ end
 % Step size
 eps = 1e-3;
 
-% SENSOR RMSE (experimental)
-noise_Tx = 0.00158; noise_Ty = 0.0125; noise_Tz = 0.00906;
-noise_Fx = 0.0525; noise_Fy = 0.0564; noise_Fz = 0.0813;
+% SENSOR sigma (experimental)
+sigma = [0.00173, 0.01598, 0.01215,	0.06838, 0.06938, 0.09147];
 
 % DESIGN SPECS (Operating Ranges)
 range_force = 1.0; % Newtons (Max expected force)
@@ -26,8 +25,7 @@ range_theta = 2*pi; % Radians (Max angle)
 
 % SCALING
 % Output Scale: We want 1.0 to represent "1 unit of Noise"
-wrench_scales = [noise_Tx; noise_Ty; noise_Tz; ...
-                 noise_Fx;  noise_Fy;  noise_Fz];
+wrench_scales = sigma';
 % Input Scale: We want 1.0 to represent "Full Scale Input"
 param_scales = [range_force; range_pos; range_theta; ...
                 range_force; range_pos; range_theta];

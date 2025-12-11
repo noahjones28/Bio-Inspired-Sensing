@@ -33,7 +33,7 @@ function [proximal_wrench, contact_xyz, force_vector_global] = get_proximal_valu
     elseif S1.VLinks(2).npie-1 == 20 % if using 20 divisions beam 
         x0 = zeros(246,1); % inital guesss
     else % if using single division beam 
-        x0 = zeros(22,1);
+        x0 = zeros(18,1);
     end
 
     % ALWAYS make tau negative for pulling tendons (push is positive)

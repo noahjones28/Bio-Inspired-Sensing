@@ -7,25 +7,32 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     ub = [1, 0.2, 2*pi, 1, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta1]
     plot_residual = true; % enable or disable the live plot
     plot_force = true; % enable or disable the live plot
-    do_offset_correction = true; % apply offset correction to raw data if needed
+    using_empirical_data = false; % true of using real-world data, false if simulation
     sensor_offset = 90e-3; %Adjust the offset between the 6axis f/t sensor and the beam base
     n_perturbations = size(prox_target, 1)-1;
     iteration_counter = 0; % Initialize plotting variables
     best_values = [];
     iterations = [];
-
-    % Weightings and Normalization
-    force_scale = 1;   % Typical force magnitude in N
-    torque_scale = 0.1;   % Typical torque magnitude in Nm
-    weight_vector = [1/torque_scale, 1/torque_scale, 1/torque_scale, 1/force_scale, 1/force_scale, 1/force_scale]; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
     channel_filter = [1, 1, 1, 1, 1, 1]; % Use only Ty, Tz, Fx
 
-    % Offset correction
-    if do_offset_correction && sensor_offset > 0
-        prox_target(:,2) = prox_target(:,2)+sensor_offset*prox_target(:,6); % Ty_base = Ty_sensor+sensor_offset*Fz_sensor
-        prox_target(:,3) = prox_target(:,3)-sensor_offset*prox_target(:,5); % Tz_base = Tz_sensor-sensor_offset*Fy_sensor
+    if using_empirical_data
+        % Offset correction (apply offset correction to raw data)
+        if sensor_offset > 0
+            prox_target(:,2) = prox_target(:,2)+sensor_offset*prox_target(:,6); % Ty_base = Ty_sensor+sensor_offset*Fz_sensor
+            prox_target(:,3) = prox_target(:,3)-sensor_offset*prox_target(:,5); % Tz_base = Tz_sensor-sensor_offset*Fy_sensor
+        end
+
+        % Wrench weightings (whitening: divide by stdev of proximal error)
+        sigma = [0.005, 0.01598, 0.01215,	0.06838, 0.06938, 0.09147];
+        %sigma = [0.1, 0.1, 0.1, 1, 1, 1];
+        weight_vector = 1./sigma;
+    else
+        % Weightings and Normalization
+        force_scale = 1;   % Typical force magnitude in N
+        torque_scale = 0.1;   % Typical torque magnitude in Nm
+        weight_vector = [1/torque_scale, 1/torque_scale, 1/torque_scale, 1/force_scale, 1/force_scale, 1/force_scale]; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
     end
-    
+
     % Check if we have support measurements 
     use_support = n_perturbations > 0;
     
@@ -84,7 +91,7 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         end
         
         %% Stage 2: Select Top K Candidates
-        K = 10;  % Number of top candidates (between 10-20)
+        K = 5;  % Number of top candidates (between 10-20)
         [~, sorted_idx] = sort(residuals, 'ascend');
         top_k_idx = sorted_idx(1:K);
         start_points = X_lhs(top_k_idx, :);
