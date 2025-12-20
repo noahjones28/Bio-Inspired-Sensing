@@ -1,42 +1,47 @@
-function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array)
-    close all; 
+function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array)
+    close all;
+    %% ABOUT
+    % Input: Measured proximal wrench Wm = [Tx,Ty,Tz,Fx,Fy,Fz] (via ATI Mini40 IP65 6-axis
+    % force-torque sensor) and measured tendon tensions τ = [τ1, τ2, τ3] (via load cells) 
+
+    % Output: Estimated external applied forces x = [F1,s1,theta1;...FN,sN,thetaN]
     
-    %% Setup
-    % Properties
-    lb = [0.1, 0.02, 0, 0.1, 0.02, 0]; % Lower bounds for estimation of [F,s,theta1]
-    ub = [1, 0.2, 2*pi, 1, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta1]
-    plot_residual = true; % enable or disable the live plot
-    plot_force = true; % enable or disable the live plot
-    using_empirical_data = false; % true of using real-world data, false if simulation
-    sensor_offset = 90e-3; %Adjust the offset between the 6axis f/t sensor and the beam base
-    n_perturbations = size(prox_target, 1)-1;
+
+    %% SETUP
+    lb = [0.1, 0.02, 0, 0.1, 0.02, 0]; % Lower bounds for estimation of [F,s,theta]
+    ub = [1, 0.2, 2*pi, 1, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta]
+    n_design_vars = length(ub); % Number of design variables
+    plot_residual = true; % Enable or disable the live residual plot
+    plot_force = true; % Enable or disable the live force-visualization plot
+    simulation = true; % Set to 'false' if using empirical measurements, 'true' if running a simulation.
+    sensor_offset = 90e-3; % Adjust the offset between the 6axis f/t sensor and the beam base
+    n_global_samples = 400; % Number of LHS samples for global exploration 
+    n_start_points = 5;  % Number of top candidate start points to refine (must be less than n_global_samples)
     iteration_counter = 0; % Initialize plotting variables
     best_values = [];
     iterations = [];
-    channel_filter = [1, 1, 1, 1, 1, 1]; % Use only Ty, Tz, Fx
 
-    if using_empirical_data
-        % Offset correction (apply offset correction to raw data)
+    if ~simulation
+        % Apply offset correction to raw data)
         if sensor_offset > 0
             prox_target(:,2) = prox_target(:,2)+sensor_offset*prox_target(:,6); % Ty_base = Ty_sensor+sensor_offset*Fz_sensor
             prox_target(:,3) = prox_target(:,3)-sensor_offset*prox_target(:,5); % Tz_base = Tz_sensor-sensor_offset*Fy_sensor
         end
-
-        % Wrench weightings (whitening: divide by stdev of proximal error)
-        sigma = [0.005, 0.01598, 0.01215,	0.06838, 0.06938, 0.09147];
-        %sigma = [0.1, 0.1, 0.1, 1, 1, 1];
-        weight_vector = 1./sigma;
+        
+        % Residual Weighting: Residuals are weighted to reduce the influence
+        % of noisy measurements and prioritize reliable ones. 
+        % Noise-Based Scaling: Each output wrench component is scaled by the
+        % inverse of it's error standard deviation, σ_error.
+        sigma_error = [0.005, 0.01598, 0.01215,	0.06838, 0.06938, 0.09147];
+        weight_vector = 1./sigma_error;
     else
-        % Weightings and Normalization
+        % Weightings for simulation
         force_scale = 1;   % Typical force magnitude in N
         torque_scale = 0.1;   % Typical torque magnitude in Nm
         weight_vector = [1/torque_scale, 1/torque_scale, 1/torque_scale, 1/force_scale, 1/force_scale, 1/force_scale]; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
     end
-
-    % Check if we have support measurements 
-    use_support = n_perturbations > 0;
     
-    % Create figure for real-time residual
+    % Initialize live residual plot
     if plot_residual
         fig = figure('Name', 'Optimization Progress', 'Position', [100, 100, 600, 400]);
         ax  = axes('Parent', fig);        % explicit axes
@@ -46,15 +51,16 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         plot_handles = gobjects(1, size(prox_target,1)); % store a line handle per N
     end
 
-    % Create figure for force plot
+    % Initialize live force-visualization plot
     if plot_force  % assuming this variable exists in your scope
         fig_handle = figure;
         set(fig_handle, 'Name', 'Force Optimization Progress');
     end
     
-    %% Optimization Run
-    [x_final, f_final] = single_force_optimization();
 
+    %% MAIN
+    % Run force optimization and get solution x_final and renorm f_final
+    [x_final, f_final] = force_optimization();
     fprintf('Force optimization complete!\n')
     fprintf('[F1, s1, θ1, F2, s2, θ2] =\n');
     disp(x_final)
@@ -63,40 +69,30 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
     resnorm_final = f_final;
 
 
-    %% Optimization Configuration
-    function [x_final, f_final] = single_force_optimization()
-        if use_support
-            % Append the first element F to the back n_perturbations times
-            lb = [lb, repmat(lb(1), 1, n_perturbations)];
-            ub = [ub, repmat(ub(1), 1, n_perturbations)];
-        end
-        
-        n_vars = length(lb);
-        
-        %% Stage 1: Latin Hypercube Sampling (Global Exploration)
-        n_samples = 400;
-        rng(1234);  % For reproducibility
-        
-        % Generate LHS samples in [0, 1]^n
-        lhs_samples = lhsdesign(n_samples, n_vars);
-        
+    %% OPTIMIZATION CONFIG
+    function [x_final, f_final] = force_optimization()
+        %% STAGE 1: LATIN HYPERCUBE SAMPLING (GLOBAL EXPLORATION) 
+        % Fixed seed for reproducibility 
+        rng(1234);
+        % Generate LHS samples
+        lhs_samples = lhsdesign(n_global_samples, n_design_vars);
         % Scale to actual bounds
         X_lhs = lb + lhs_samples .* (ub - lb);
-        
         % Evaluate objective on all samples
-        residuals = zeros(n_samples, 1);
-        for i = 1:n_samples
+        residuals = zeros(n_global_samples, 1);
+        for i = 1:n_global_samples
             r = residual_vec(X_lhs(i, :));
             residuals(i) = sum(r.^2);  % Sum of squared residuals
         end
         
-        %% Stage 2: Select Top K Candidates
-        K = 5;  % Number of top candidates (between 10-20)
+        % Select top K candidates
+        K = n_start_points;
         [~, sorted_idx] = sort(residuals, 'ascend');
         top_k_idx = sorted_idx(1:K);
         start_points = X_lhs(top_k_idx, :);
         
-        %% Stage 3: MultiStart Least Squares
+
+        %% STAGE 2: MULTISTART NON-LINEAR LEAST SQUARES REFINEMENT
         % Configure lsqnonlin options
         lsq_options = optimoptions('lsqnonlin', ...
             'Algorithm', 'trust-region-reflective', ...
@@ -127,67 +123,23 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
         % Run MultiStart with custom start points
         [x_final, f_final] = run(ms, problem, custom_starts);
         
-        %% Post-processing
-        % Remove supporting measurements from x_final
-        x_final = x_final(1:end - n_perturbations);
-        
-        % Wrap theta values to [0, 2*pi]
-        x_final(3) = mod(x_final(3), 2*pi);
-        x_final(6) = mod(x_final(6), 2*pi);
-        
         % Ensure force 1 is most distal force
         if x_final(2) < x_final(5)
             x_final = [x_final(4:end), x_final(1:3)];
         end
     end
-    
+
+
+    %% RESIDUAL VECTOR
     function r = residual_vec(x)
-        if ~use_support
-            % Simple mode: weighted residual
-            y = get_proximal_value([x(1:3);x(4:6)], tau_array(1,:));
-            r = (weight_vector .* (y - prox_target))';
-            return;
-        end
-        
-        % Extract baseline parameters and compute baseline wrench
-        x_base = x(1:3);  % [F, s, theta]
-        y_base = get_proximal_value(x_base, tau_array(1,:));
-        
-        % Magnitude residual (force scale)
-        r_main_mag = norm(channel_filter .* y_base) - ...
-                norm(channel_filter .* prox_target(1,:));
-
-        
-        % ΔW residuals for each perturbation
-        r_perturbation_dirs = [];
-        for i = 1:n_perturbations
-            % Compute perturbed wrench
-            x_perturb = [x(3+i), x_base(2:3)];  % [Fi, s, theta]
-            y_perturb = get_proximal_value(x_perturb, tau_array(i+1,:));
-            
-            % Compute and normalize ΔW
-            delta_pred = weight_vector .* (y_perturb - y_base);
-            delta_meas = weight_vector .* (prox_target(i+1,:) - prox_target(1,:));
-
-            % Compute norms
-            delta_pred_norm = max(norm(delta_pred), 1e-12);
-            delta_meas_norm = max(norm(delta_meas), 1e-12);
-         
-            % Direction of ΔW (normalized)
-            delta_pred_noralized = delta_pred / delta_pred_norm;
-            delta_meas_normalized = delta_meas / delta_meas_norm;
-            perturbation_dir = delta_pred_noralized - delta_meas_normalized; 
-            r_perturbation_dirs = [r_perturbation_dirs, perturbation_dir];
-        end
-        
-        % Weighting
-        A = 0.3;  % magnitude
-        B = 1.0;  % ΔW direction
- 
-        r = [A*r_main_mag, B*r_perturbation_dirs]';
+        % Run estimated force through forward model to get simulated wrench
+        y = forward_model([x(1:3);x(4:6)], tau_array(1,:));
+        % Compare simulated wrench to measured wrench and weight
+        r = (weight_vector .* (y - prox_target))';
     end
     
-    %% Output functions
+
+    %% CUSTOM OUTPUT FUNCTION
     function stop = output_function(x, optimValues, state)
         % Initial condition
         stop = false;
@@ -207,32 +159,28 @@ function [distal_value, resnorm_final] = get_distal_value(prox_target, tau_array
                 best_values(end+1) = min(best_values(end), f);
             end
 
-            % Update plot with current force configuration if new best
+            % Update live force-visualization plot if there is a new best
             if plot_force
                 if f == best_values(end) && ishandle(fig_handle)
                     update_force_plot(x, fig_handle);
                 end
             end
           
-            % Update residual plot
+            % Update live residual plot
             if plot_residual
                 update_residual_plot();
             end 
         end
     end
     
+
+    %% UPDATE LIVE FORCE-VISUALIZATION PLOT
     function update_force_plot(x, fig_handle)
-        % Wrap theta values to [0, 2*pi]
-        x(3) = mod(x(3), 2*pi);
-        x(6) = mod(x(6), 2*pi);
-        % Get proximal values with plotting enabled
-        if ~use_support
-            y = get_proximal_value([x(1:3);x(4:6)], tau_array, true, fig_handle);
-        else
-            y = get_proximal_value(x(1:3), tau_array(1,:), true, fig_handle);
-        end
+        % Run forward model with plotting enabled and pass fig_handle
+        y = forward_model([x(1:3);x(4:6)], tau_array, true, fig_handle);
     end
     
+    %% UPDATE LIVE RESIDUAL PLOT
     function update_residual_plot()
         % Update plot with current data
         if isempty(iterations), return; end
