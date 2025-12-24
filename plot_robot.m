@@ -2,6 +2,8 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     plot_geometry = true;
     plot_regulization_gaussian = true;
     plot_tendons = false;
+    export_plot = false;
+    colors = {'#FF00FF', '#00FFFF'}; % Colors for different forces
 
     if nargin < 7 % if doPlot was not provided
         doPlot = false; % default
@@ -35,7 +37,8 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     zlabel('Z (m)');
     title('Deflected Robot Shape');
     view(120, 15);
-    rotate3d on; grid on; axis equal;
+    rotate3d on; grid on; axis equal
+    camlight(120, 45);
     
     % Extract positions
     num_divs = S.VLinks(2).npie-1; % number of divisions
@@ -114,13 +117,34 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
         tip_x = force_positions(1,:) - force_scaler * force_vectors_rotated(1,:);
         tip_y = force_positions(2,:) - force_scaler * force_vectors_rotated(2,:);
         tip_z = force_positions(3,:) - force_scaler * force_vectors_rotated(3,:);
-        
+
         if plot_regulization_gaussian
-            % Plot the line connecting all tips
-            plot3(tip_x, tip_y, tip_z, 'k-', 'LineWidth', 1);
-            % Shade the region between curve and x-axis
-            surf([force_positions(1,:); tip_x], [force_positions(2,:); tip_y], [force_positions(3,:); tip_z], ...
-                 'FaceColor', 'm', 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+            if num_forces == 1
+                % Plot the line connecting all tips
+                plot3(tip_x, tip_y, tip_z, 'k-', 'LineWidth', 1);
+                % Shade the region between curve and x-axis
+                surf([force_positions(1,:); tip_x], [force_positions(2,:); tip_y], [force_positions(3,:); tip_z], ...
+                     'FaceColor', hex2rgb(colors{1}), 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+            else
+                % Find jump point between forces (abrupt change in position)
+                dists = vecnorm(diff(force_positions, 1, 2));
+                [~, jump_idx] = max(dists);
+                
+                idx1 = 1:jump_idx;
+                idx2 = (jump_idx+1):size(force_positions,2);
+                
+                % Plot the line connecting tips for each force separately
+                plot3(tip_x(idx1), tip_y(idx1), tip_z(idx1), 'k-', 'LineWidth', 1);
+                plot3(tip_x(idx2), tip_y(idx2), tip_z(idx2), 'k-', 'LineWidth', 1);
+                
+                % Shade force 1 region
+                surf([force_positions(1,idx1); tip_x(idx1)], [force_positions(2,idx1); tip_y(idx1)], [force_positions(3,idx1); tip_z(idx1)], ...
+                     'FaceColor', hex2rgb(colors{1}), 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+                
+                % Shade force 2 region
+                surf([force_positions(1,idx2); tip_x(idx2)], [force_positions(2,idx2); tip_y(idx2)], [force_positions(3,idx2); tip_z(idx2)], ...
+                     'FaceColor', hex2rgb(colors{2}), 'FaceAlpha', 0.3, 'EdgeColor', 'none');
+            end
         end
 
         % Find and plot the largest vectors also sort the peaks from largest to smallest
@@ -142,7 +166,6 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
         [locs, sortIdx] = sort(locs, 'ascend');
         pks = pks(sortIdx);
         
-        colors = {'#24a146', '#27bcd1'}; % Colors for different forces
         h_forces = []; % Handles for legend
         
         for i = 1:length(locs)
@@ -168,11 +191,11 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
         
         for i = 1:length(locs)
             if num_forces == 1
-                legend_labels{i} = sprintf('Force %d: \\bfF\\rm = %.3f N, \\bfs\\rm = %.3f m, \\bfθ_1\\rm = %.3f rad, \\bfθ_2\\rm = %.3f rad', ...
-                    i, distal_values(1), distal_values(2), distal_values(3), distal_values(4));
+                legend_labels{i} = sprintf('Force %d: \\bfF\\rm = %.3f N, \\bfs\\rm = %.3f m, \\bfθ\\rm = %.3f rad', ...
+                    i, distal_values(1), distal_values(2), distal_values(3));
             else
-                legend_labels{i} = sprintf('Force %d: \\bfF\\rm = %.3f N, \\bfs\\rm = %.3f m, \\bfθ_1\\rm = %.3f rad, \\bfθ_2\\rm = %.3f rad', ...
-                    i, distal_values(i, 1), distal_values(i, 2), distal_values(i, 3), distal_values(i, 4));
+                legend_labels{i} = sprintf('Force %d: \\bfF\\rm = %.3f N, \\bfs\\rm = %.3f m, \\bfθ\\rm = %.3f rad', ...
+                    i, distal_values(i, 1), distal_values(i, 2), distal_values(i, 3));
             end
         end
         
@@ -188,4 +211,9 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
         legend(legend_handles, legend_labels, 'Location', 'southeast');
     end
     drawnow; % Force immediate plot update
+
+    % Optional export plot
+    if export_plot
+        exportgraphics(gcf, 'FixedPlot.pdf', 'ContentType', 'image', 'Resolution', 600);
+    end
 end
