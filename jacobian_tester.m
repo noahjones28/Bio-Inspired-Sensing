@@ -1,64 +1,70 @@
+% Paramaters
+n_test_forces = 20;
+F_range = [0.3, 1.0]; 
+s_range = [0.02, 0.20]; 
+theta_range = [0, 2*pi]; 
+s_separate_min = 0.02;
+
 % Get test forces
-forces = get_test_forces();  % Returns nx6 array
-n = size(forces, 1);
+test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, s_separate_min);
 
 % Storage
-sigma_mins = zeros(n, 1);
-errors = zeros(n, 6);
+sigma_mins = zeros(n_test_forces, 1);
+errors = zeros(n_test_forces, 6);
 
-for i = 1:n
-    F_actual = forces(i, :);
-    
-    % Forward then inverse
-    %W_sim = get_proximal_value([F_actual(1:3); F_actual(4:6)]);
-    %F_estimated = get_distal_value(W_sim, [0 0 0]);
-    
-    % Store error
-    %errors(i, :) = abs(F_estimated(:)' - F_actual);
-    
+for i = 1:n_test_forces
+    F_actual = test_forces(i, :);
     % Jacobian and singular values
     J = compute_jacobian(F_actual);
     % Get SVD
     [U, S, V] = svd(J{1});
     sigma_mins(i) = S(end);
 end
-% Print error matrix
-fprintf('Error matrix:\n');
-fprintf('%10s %10s %10s %10s %10s %10s\n', 'F1', 's1', 'theta1', 'F2', 's2', 'theta2');
-%fprintf('%10.4f %10.4f %10.4f %10.4f %10.4f %10.4f\n', errors');
 
 % Print results
 fprintf('Mean of min singular values: %.6e\n\n', mean(sigma_mins));
-fprintf('Mean absolute error:\n');
-fprintf('  F:     %.6f\n', mean([errors(:,1); errors(:,4)]));
-fprintf('  s:     %.6f\n', mean([errors(:,2); errors(:,5)]));
-fprintf('  theta: %.6f\n', mean([errors(:,3); errors(:,6)]));
 
-function X = get_test_forces()
-    n_forces = 54;
-    F_range = [0.3, 0.8];
-    s_range = [0.02, 0.20];
-    theta_range = [0, 2*pi];
-    scale = @(u,r) r(1) + u.*diff(r);
+
+function test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, s_separate_min)
     rng(1234);
-    U1 = lhsdesign(n_forces, 3);
-    U2 = lhsdesign(n_forces, 3);
-    F1 = scale(U1(:,1), F_range);
-    F2 = scale(U2(:,1), F_range);
-    s1 = scale(U1(:,2), s_range);
-    s2 = scale(U2(:,2), s_range);
-    theta1 = scale(U1(:,3), theta_range);
-    theta2 = scale(U2(:,3), theta_range);
-    X = [F1 s1 theta1 F2 s2 theta2];
+    
+    % 1. OVERSAMPLE: Generate many more points than needed (e.g., 20x)
+    % This ensures we have enough survivors after filtering.
+    n_pool = n_test_forces * 20; 
+    
+    % 2. Generate LHS with 'maximin' to maximize point separation initially
+    U = lhsdesign(n_pool, 6, 'criterion', 'maximin', 'iterations', 50);
+    
+    scale = @(u,r) r(1) + u.*diff(r);
+    
+    F1 = scale(U(:,1), F_range); 
+    s1 = scale(U(:,2), s_range); 
+    t1 = scale(U(:,3), theta_range);
+    
+    F2 = scale(U(:,4), F_range); 
+    s2 = scale(U(:,5), s_range); 
+    t2 = scale(U(:,6), theta_range);
+    
+    candidates = [F1 s1 t1 F2 s2 t2];
+    
+    % 3. FILTER: Remove invalid points
+    valid_mask = abs(s1 - s2) >= s_separate_min;
+    valid_forces = candidates(valid_mask, :);
+    
+    % 4. CHECK & SELECT: Ensure we have enough, then pick 50
+    num_survivors = size(valid_forces, 1);
+    
+    if num_survivors < n_test_forces
+        error('Constraint s_separate_min is too strict! Only found %d valid forces out of %d. Increase pool size.', num_survivors, n_pool);
+    end
+    
+    % Pick the first 50 valid ones
+    test_forces = valid_forces(1:n_test_forces, :);
 
-    % Filter forces that are too close:
-    X = X(abs(X(:,2) - X(:,5)) >= 0.1, :);
-
-    %flip so large s is first
-    for i = 1:size(X,1)
-        if X(i,2) < X(i,5)
-            X(i,:) = [X(i,4:6), X(i,1:3)]; 
+    % Flip so large s is first
+    for i = 1:size(test_forces,1)
+        if test_forces(i,2) < test_forces(i,5)
+            test_forces(i,:) = [test_forces(i,4:6), test_forces(i,1:3)]; 
         end
     end
-
 end

@@ -1,10 +1,10 @@
-function Jw = compute_jacobian(p, S1)
+function Jw = compute_jacobian(p, S)
     %% ABOUT
     % Computes normalized Jacobian of get_proximal_values using central difference
     
     % Input:
-    % p: Nx6 array [F1, s1, theta1, F2, s2, theta2; ...]
-    % S1: Linkage
+    % p: Nx6 array [F1, S, theta1, F2, s2, theta2; ...]
+    % S: Linkage
     
     % Output:
     % Jw: the whitened (noise-normalized), nondimensionalized sensitivity matrix (jacobian) 
@@ -13,10 +13,11 @@ function Jw = compute_jacobian(p, S1)
     %% SETUP
     % Set default values
     if nargin < 2
-        load("my_robot.mat");
+        load("my_robot.mat",'S');
     end
     % Parameters
     eps = 1e-3; % Base step size
+    print_output = false; % Print smallest singular value
     % Per-channel standard deviation of the error between hardware measurements and model predictions.
     % This error captures model mismatch, hysteresis, non-elastic bending, and measurement uncertainty.
     % Estimated from 40+ hardware experiments.
@@ -49,7 +50,7 @@ function Jw = compute_jacobian(p, S1)
     end
     
     % Get wrench for each perturbed test force
-    all_W = forward_model_parallel(all_forces, S1);
+    all_W = forward_model_parallel(all_forces, S);
     
     % For each test force build jacobian
     for i = 1:N
@@ -64,6 +65,8 @@ function Jw = compute_jacobian(p, S1)
         Jw{i} = diag(1 ./ wrench_scales) * J_raw * diag(param_scales);
         
         sv = svd(Jw{i});
-        fprintf('Smallest singular value (%d): %.6e\n', i, sv(end));
+        if print_output
+            fprintf('Smallest singular value (%d): %.6e\n', i, sv(end));
+        end
     end
 end

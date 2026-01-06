@@ -1,14 +1,15 @@
-function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, force_idxs, doPlot, fig_handle)
+function plot_robot(S, q, distal_values, internal_wrenches, doPlot, fig_handle)
     plot_geometry = true;
+    vonmises_fos_overlay = true;
     plot_regulization_gaussian = true;
     plot_tendons = false;
     export_plot = false;
     colors = {'#FF00FF', '#00FFFF'}; % Colors for different forces
 
-    if nargin < 7 % if doPlot was not provided
+    if nargin < 5 % if doPlot was not provided
         doPlot = false; % default
     end
-    if nargin < 8 % if fig_handle was not provided
+    if nargin < 6 % if fig_handle was not provided
         fig_handle = false; % default
     end
     if doPlot && ishandle(fig_handle)
@@ -20,6 +21,9 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
         hold on; grid on; axis equal; axis vis3d; 
     elseif doPlot && plot_geometry
         close;
+        if vonmises_fos_overlay
+            S = vonmises_fos_overlay_func(S,internal_wrenches);
+        end
         S.plotq(q) % plot geometry 
         figure(gcf); % Create new figure if handle not provided
     elseif doPlot
@@ -40,31 +44,32 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     rotate3d on; grid on; axis equal
     camlight(120, 45);
     
-    % Extract positions
-    num_divs = S.VLinks(2).npie-1; % number of divisions
-    quadpoints = S.CVRods{2}(2).Xs; % get quadpoints of just first div (each div has same quadpoints) 
-    quadpoints_per_div = length(quadpoints);
-    num_quadpoints_total = S.nsig;
-    num_quadpoints_link = quadpoints_per_div*num_divs;
+    % Parameters
+    num_sig = S.nsig;
     num_forces = size(distal_values, 1);
+    linkage_length = 0.1;
+    force_idxs = S.Fp_sig'; % List of quadpoint idxs with an applied force 
     
-    % Get transformation matrices at all points
-    g_all = S.FwdKinematics(q);
-    g_link = g_all((num_quadpoints_total-num_quadpoints_link)*4+1:end, :); % isolate transformation matrices of our main link
-    g_col4 = reshape(g_link(:,4), 4, num_quadpoints_link); % pick the 4th column of each block
-    position = g_col4(1:3, :); % extarct xyz position from each matrix
+    % get force vectors
+    force_vectors_cell = cellfun(@(f) f(0), S.Fp_vec, 'UniformOutput', false);
+    force_vectors = cell2mat(force_vectors_cell); % convert to matrix
+    force_vectors(1:3, :) = [];
+
+    % Get transformation matrices at all significant points
+    transform_matrices = S.FwdKinematics(q);
+    col_4 = reshape(transform_matrices(:,4), 4, num_sig); % pick the 4th column of each block
+    pos_xyz = col_4(1:3, :); % extarct xyz position from each matrix
     
     % Define undeflected backbone positions (along x-axis)
-    beam_length = 0.2;
-    undeflected_x = linspace(0, beam_length, num_quadpoints_link);
-    undeflected_backbone = [undeflected_x; zeros(1, num_quadpoints_link); zeros(1, num_quadpoints_link)];
+    undeflected_x = linspace(0, linkage_length, num_sig);
+    undeflected_backbone = [undeflected_x; zeros(1, num_sig); zeros(1, num_sig)];
 
     % Rotate force vectors
     force_vectors_rotated = zeros(size(force_vectors,1), size(force_vectors,2));
-    for i = 1:length(force_idxs)
+    for i = 1:size(force_vectors,2)
         idx = force_idxs(i);
         % Extract the i-th transformation matrix
-        T = g_link((idx-1)*4+1:idx*4, :);  % 4x4 matrix
+        T = transform_matrices((idx-1)*4+1:idx*4, :);  % 4x4 matrix
         
         % Extract the 3x3 rotation part (no scale present)
         R = T(1:3, 1:3);
@@ -74,12 +79,11 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     end
     
     % Get translations
-    translations = zeros(3, num_quadpoints_link);
-    for i = 1:num_quadpoints_link
+    translations = zeros(3, num_sig);
+    for i = 1:num_sig
         % translation
-        translations(:,i) = position(:,i) - undeflected_backbone(:,i);
+        translations(:,i) = pos_xyz(:,i) - undeflected_backbone(:,i);
     end
-
 
     % Plot the undeflected backbone
     h_undeflected = plot3(undeflected_backbone(1,:), undeflected_backbone(2,:), undeflected_backbone(3,:), 'k--', 'LineWidth', 2);
@@ -90,7 +94,7 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     quiver3(0,0,0,0,0,1,0.02,'b-','MaxHeadSize',1.0,'LineWidth', 2)
     
     % Plot deflected backbone
-    plot3(position(1,:), position(2,:), position(3,:), 'b.-', 'LineWidth', 2, 'MarkerSize', 8);
+    plot3(pos_xyz(1,:), pos_xyz(2,:), pos_xyz(3,:), 'b.-', 'LineWidth', 2, 'MarkerSize', 8);
 
     
     % Plot deflected tendons
@@ -107,13 +111,13 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     end
     
     % Get backbone positions of the forces
-    force_positions = position(:,force_idxs);
+    force_positions = pos_xyz(:,force_idxs);
 
     % If any element in force_vectors is non-zero
     if any(force_vectors(:) ~= 0)
         % --- Plot the tips of force vectors ---
         % Calculate tip positions (starting from points on x-axis)
-        force_scaler = 0.5;  % Scale factor for visualization
+        force_scaler = 0.05/max(vecnorm(force_vectors_rotated)); % Normalize and scale
         tip_x = force_positions(1,:) - force_scaler * force_vectors_rotated(1,:);
         tip_y = force_positions(2,:) - force_scaler * force_vectors_rotated(2,:);
         tip_z = force_positions(3,:) - force_scaler * force_vectors_rotated(3,:);
@@ -216,4 +220,39 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     if export_plot
         exportgraphics(gcf, 'FixedPlot.pdf', 'ContentType', 'image', 'Resolution', 600);
     end
+end
+
+%% Vonmises FOS overlay
+function S = vonmises_fos_overlay_func(S, internal_wrenches)
+    yield_strength = 35e6;
+    for i=1:S.N
+        r_major = S.CVRods{i}(end).Link.a{1}(0);
+        r_minor = S.CVRods{i}(end).Link.b{1}(0);
+        Tx = internal_wrenches(i,1);
+        Ty = internal_wrenches(i,2);
+        Tz = internal_wrenches(i,3);
+        [max_vm, fos] = calc_ellipse_vonmises(r_major, r_minor, Tx, Ty, Tz, yield_strength);
+        
+        % fos to color
+        if fos <= 1
+            % Red
+            color = [1, 0, 0];
+        elseif fos <= 2
+            % Interpolate red to yellow (increase green)
+            t = fos - 1;  % t goes from 0 to 1
+            color = [1, t, 0];
+        elseif fos <= 3
+            % Interpolate yellow to green (decrease red)
+            t = fos - 2;  % t goes from 0 to 1
+            color = [1 - t, 1, 0];
+        else
+            % Green
+            color = [0, 1, 0];
+        end
+        % Update link color
+        S.CVRods{i}(end).Link.color = color;
+        S.CVRods{i}(end).UpdateAll;
+    end
+    % Update linkage with changes
+    S = S.Update();
 end
