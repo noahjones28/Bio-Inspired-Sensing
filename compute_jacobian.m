@@ -1,9 +1,10 @@
-function Jw = compute_jacobian(p, S)
+function Jw = compute_jacobian(p, tau_array, S)
     %% ABOUT
     % Computes normalized Jacobian of get_proximal_values using central difference
     
     % Input:
     % p: Nx6 array [F1, S, theta1, F2, s2, theta2; ...]
+    % tau: 1x3 array [tau1, tau2, tau3]
     % S: Linkage
     
     % Output:
@@ -12,9 +13,13 @@ function Jw = compute_jacobian(p, S)
     
     %% SETUP
     % Set default values
-    if nargin < 2
+    if nargin < 3
         load("my_robot.mat",'S');
     end
+    if nargin < 2
+        tau_array = zeros(1,3);
+    end
+
     % Parameters
     eps = 1e-3; % Base step size
     print_output = false; % Print smallest singular value
@@ -33,7 +38,9 @@ function Jw = compute_jacobian(p, S)
     steps = eps * param_scales';  % 1x6 scaled steps vector
     % Build all perturbations for all parameter sets at once
     % Each parameter set needs 12 rows (6 plus + 6 minus)
-    all_forces = zeros(N * 12, 9);
+    all_forces = zeros(N * 12, 6);
+    % Append the tau array to end of each row
+    all_forces = [all_forces, repelem(tau_array, 12, 1)];
     
     
     %% JACOBIAN COMPUTATION (CENTRAL FINITE DIFFERENCE) (WHITENED NOISE-NORMALIZED)

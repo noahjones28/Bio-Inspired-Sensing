@@ -47,7 +47,7 @@ function S  = apply_gaussian_force(S, distal_values)
         % Get local normalized locations
         locations = get_normalized_locations(x_loads, link_idxs, link_length, num_links, quadpoints_local);
         % Map the global force vector into the local frame of link i
-        F_local = globalToLocalForce(S.g_ini, link_idxs, F_global);
+        F_local = global_to_local(S.g_ini, link_idxs, F_global);
 
         % Fill storage cells with result
         force_vectors{end+1} = F_local;
@@ -203,55 +203,3 @@ function [x_loads, F_loads] = distributePointLoad(F_total, x0, x_available, sigm
     end
 end
 
-
-%% GLOBALTOLOCALFORCE 
-function F_local = globalToLocalForce(M, idxs, F_global)
-% GLOBALTOLOCALFORCE Maps multiple global forces to local link frames.
-%   Inputs:
-%       M        - 80x4 matrix (Stacked 4x4 matrices for all 20 links)
-%       idxs     - 1xN vector of link indices where forces are applied
-%       F_global - 3xN matrix of forces [Fx; Fy; Fz] in Global Frame
-%   Output:
-%       F_local  - 3xN matrix of forces in their respective Local Frames
-
-    % 1. Validate inputs
-    num_forces = size(F_global, 2);
-    if length(idxs) ~= num_forces
-        error('Length of link indices (idxs) must match columns in F_global.');
-    end
-    
-    % Initialize output
-    F_local = zeros(3, num_forces);
-    
-    % 2. Pre-compute Global Orientations for the whole chain
-    % This avoids re-multiplying the matrix chain for every single force.
-    num_total_links = size(M, 1) / 4;
-    R_cumulative = eye(3);
-    
-    % Store the global rotation matrix for every link
-    % R_globals{i} will hold the rotation from Global to Link i
-    R_globals = cell(num_total_links, 1);
-    
-    for k = 1:num_total_links
-        % Extract local 3x3 rotation for link k from M
-        row_start = (k-1)*4 + 1;
-        R_k = M(row_start : row_start+2, 1:3);
-        
-        % Accumulate: R_global = R_parent_global * R_current_local
-        R_cumulative = R_cumulative * R_k;
-        
-        % Store it
-        R_globals{k} = R_cumulative;
-    end
-    
-    % 3. Apply Transformations
-    for k = 1:num_forces
-        link_id = idxs(k);
-        
-        % Retrieve the global rotation for this specific link
-        R_link_global = R_globals{link_id};
-        
-        % Transform Force: F_local = R_global' * F_global
-        F_local(:, k) = R_link_global' * F_global(:, k);
-    end
-end

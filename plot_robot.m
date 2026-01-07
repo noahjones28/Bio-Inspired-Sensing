@@ -1,15 +1,18 @@
-function plot_robot(S, q, distal_values, internal_wrenches, doPlot, fig_handle)
+function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, fig_handle)
+    % Parameters
     plot_geometry = true;
     vonmises_fos_overlay = true;
     plot_regulization_gaussian = true;
-    plot_tendons = false;
+    plot_tendons = true;
+    plot_disks = true;
     export_plot = false;
+    yield_strength = 56e6; % Polycarbonate (PC)
     colors = {'#FF00FF', '#00FFFF'}; % Colors for different forces
 
-    if nargin < 5 % if doPlot was not provided
+    if nargin < 6 % if doPlot was not provided
         doPlot = false; % default
     end
-    if nargin < 6 % if fig_handle was not provided
+    if nargin < 7 % if fig_handle was not provided
         fig_handle = false; % default
     end
     if doPlot && ishandle(fig_handle)
@@ -22,9 +25,12 @@ function plot_robot(S, q, distal_values, internal_wrenches, doPlot, fig_handle)
     elseif doPlot && plot_geometry
         close;
         if vonmises_fos_overlay
-            S = vonmises_fos_overlay_func(S,internal_wrenches);
+            S = vonmises_fos_overlay_func(S,internal_wrenches,yield_strength);
         end
         S.plotq(q) % plot geometry 
+        if vonmises_fos_overlay
+            add_fos_colorbar();  % Add colorbar AFTER plot is created
+        end
         figure(gcf); % Create new figure if handle not provided
     elseif doPlot
         close;
@@ -95,6 +101,23 @@ function plot_robot(S, q, distal_values, internal_wrenches, doPlot, fig_handle)
     
     % Plot deflected backbone
     plot3(pos_xyz(1,:), pos_xyz(2,:), pos_xyz(3,:), 'b.-', 'LineWidth', 2, 'MarkerSize', 8);
+
+    % Plot disks at each significant point
+    if plot_disks
+        theta = linspace(0, 2*pi, 50);
+        r = 0.01;
+        disk_local = [zeros(size(theta)); r*cos(theta); r*sin(theta); ones(size(theta))];
+        
+        link_skip = 2;  % Plot every 2nd link (1 = every link, 2 = every other, 3 = every 3rd, etc.)
+        points_per_link = num_sig / S.N;
+        for i = link_skip:link_skip:S.N
+            idx = i * points_per_link;
+            T = transform_matrices((idx-1)*4+1:idx*4, :);
+            disk_tf = T * disk_local;
+            fill3(disk_tf(1,:), disk_tf(2,:), disk_tf(3,:), [0.8 0.8 0.8], 'FaceAlpha', 0.5);
+            plot3(disk_tf(1,:), disk_tf(2,:), disk_tf(3,:), 'k', 'LineWidth', 1);
+        end
+    end
 
     
     % Plot deflected tendons
@@ -223,9 +246,10 @@ function plot_robot(S, q, distal_values, internal_wrenches, doPlot, fig_handle)
 end
 
 %% Vonmises FOS overlay
-function S = vonmises_fos_overlay_func(S, internal_wrenches)
-    yield_strength = 35e6;
-    for i=1:S.N
+function [S, fos_values] = vonmises_fos_overlay_func(S, internal_wrenches, yield_strength)
+    fos_values = zeros(S.N, 1);
+    
+    for i = 1:S.N
         r_major = S.CVRods{i}(end).Link.a{1}(0);
         r_minor = S.CVRods{i}(end).Link.b{1}(0);
         Tx = internal_wrenches(i,1);
@@ -233,26 +257,53 @@ function S = vonmises_fos_overlay_func(S, internal_wrenches)
         Tz = internal_wrenches(i,3);
         [max_vm, fos] = calc_ellipse_vonmises(r_major, r_minor, Tx, Ty, Tz, yield_strength);
         
-        % fos to color
+        fos_values(i) = fos;
+        
+        % FOS to color
         if fos <= 1
-            % Red
-            color = [1, 0, 0];
+            color = [fos, 0, 0];           % Black → Red
         elseif fos <= 2
-            % Interpolate red to yellow (increase green)
-            t = fos - 1;  % t goes from 0 to 1
-            color = [1, t, 0];
+            t = fos - 1;
+            color = [1, t, 0];             % Red → Yellow
         elseif fos <= 3
-            % Interpolate yellow to green (decrease red)
-            t = fos - 2;  % t goes from 0 to 1
-            color = [1 - t, 1, 0];
+            t = fos - 2;
+            color = [1 - t, 1, 0];         % Yellow → Green
         else
-            % Green
-            color = [0, 1, 0];
+            color = [0, 1, 0];             % Green
         end
-        % Update link color
+        
         S.CVRods{i}(end).Link.color = color;
         S.CVRods{i}(end).UpdateAll;
     end
-    % Update linkage with changes
+    
     S = S.Update();
+end
+
+%% FOS Colorbar
+function add_fos_colorbar()
+    n = 256;
+    cmap = zeros(n, 3);
+    for i = 1:n
+        fos = 3 * (i - 1) / (n - 1);
+        if fos <= 1
+            cmap(i,:) = [fos, 0, 0];       % Black → Red
+        elseif fos <= 2
+            t = fos - 1;
+            cmap(i,:) = [1, t, 0];         % Red → Yellow
+        else
+            t = fos - 2;
+            cmap(i,:) = [1 - t, 1, 0];     % Yellow → Green
+        end
+    end
+    
+    colormap(gca, cmap);
+    clim([0 3]);
+    cb = colorbar('Location', 'eastoutside');
+    cb.Label.String = 'Von Mises Factor of Safety';
+    cb.Label.FontWeight = 'bold';
+    cb.Label.FontSize = 12;
+    cb.FontSize = 11;
+    cb.FontWeight = 'bold';
+    cb.Ticks = [0 1 2 3];
+    cb.TickLabels = {'0', '1', '2', '3+'};
 end

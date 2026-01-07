@@ -52,8 +52,9 @@ function [proximal_wrench, internal_wrenches] = forward_model(distal_values, tau
     
 
     %% STATICS SIMULATION
-    % Initial tendon tenions and joint position values 
-    action = [0;0;0;0;0;0];
+    % Initial joint position values 
+    initial_joint = [0;0;0;0;0;0];
+    action = [tau_array';initial_joint]; % append tendon actuation
 
     % Statics simulation
     [q,u,lambda] = S.statics(x0,action,'plotResult',false,'Display','off');
@@ -88,6 +89,6 @@ function [proximal_wrench, internal_wrenches] = forward_model(distal_values, tau
     
     %% PLOTTING
     if doPlot
-        plot_robot(S, q, distal_values, internal_wrenches, doPlot, fig_handle);
+        plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, fig_handle);
     end
 end
