@@ -12,16 +12,17 @@ function design_optimization(design, n_test_forces)
     end
 
     % Parameters
-    n_global_samples = 10;    % Samples for Global Search
+    n_global_samples = 3;    % Samples for Global Search
+    n_test_forces = 30; % In Design of Experiments (DOE), the standard rule of thumb is 10 samples per dimension.
     F_range = [0.3, 1.0]; 
     s_range = [0.02, 0.20]; 
     theta_range = [0, 2*pi];
     tau_range = [0, 1.5];
-    s_separate_min = 0.02;
-    Yield_Strength_PLA = 56e6; 
+    s_sep_min = 0.02;
+    Yield_Strength_PLA = 56e6;
 
     % Generate Test Forces
-    test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_separate_min);
+    test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_sep_min);
     
     %% STAGE 1: CONSTRAINED GLOBAL SEARCH (LHS)
     fprintf('\n=== STAGE 1: Global Feasible Search (%d samples) ===\n', n_global_samples);
@@ -91,24 +92,46 @@ end
 
 %% OBJECTIVE FUNCTION
 function cost = objective_scalar(x, test_forces, design)
-    % Update Design (Ensure this function updates the global S object or similar)
+    % Update Design
     S = update_design(x, design, false);
-
-    % Split forces and tau_arrays
-    test_forces = test_forces(:, 1:6);
+    
+    % Split inputs
+    force_inputs = test_forces(:, 1:6);
     tau_arrays = test_forces(:, end-2:end);
+    J_cell = compute_jacobian(force_inputs, tau_arrays, S);
     
-    % Get Jacobians (Using your existing function)
-    J_cell = compute_jacobian(test_forces, tau_arrays, S);
+    % --- PARAMETERS ---
+    sigma_threshold = 3.0;  % 3σ confidence (99.7% certain signal is real)
+    leak_slope = 0.01;      % Guidance for "blind" cases (1% slope)
     
-    sigma_mins = zeros(size(J_cell,1), 1);
+    total_score = 0;
+    
     for i = 1:size(J_cell,1)
         s_vals = svd(J_cell{i});
-        sigma_mins(i) = s_vals(end);
+        min_sv = s_vals(end); % The bottleneck
+        
+        % Calculate raw margin
+        margin = min_sv - sigma_threshold;
+        
+        if margin > 0
+            % CASE A: SUCCESS (Above Threshold)
+            % Use LOG for Diminishing Returns.
+            % We add 1 so that margin=0 gives score=0.
+            score = log(margin + 1); 
+            
+        else
+            % CASE B: FAILURE (Below Threshold)
+            % Use LINEAR LEAK for Guidance.
+            % Score is negative (penalty), getting worse as we get further from threshold.
+            % Slope is gentle so it doesn't distract from keeping winners alive.
+            score = leak_slope * margin; 
+        end
+        
+        total_score = total_score + score;
     end
     
-    % MAXIMIZE mean singular value -> MINIMIZE negative mean
-    cost = -mean(sigma_mins);
+    % Negate for Minimizer
+    cost = -total_score;
 end
 
 
@@ -153,49 +176,63 @@ end
 
 
 %% GENERATE TEST FORCES
-function test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_separate_min)
+function test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_sep_min)
     rng(1234);
     
-    % 1. OVERSAMPLE: Generate many more points than needed (e.g., 20x)
-    % This ensures we have enough survivors after filtering.
-    n_pool = n_test_forces * 20; 
-    
-    % 2. Generate LHS with 'maximin' to maximize point separation initially
-    U = lhsdesign(n_pool, 9, 'criterion', 'maximin', 'iterations', 50);
+    % We need 9 variables: 
+    % [F1, F2, t1, t2, tau1, tau2, tau3, s_midpoint, s_separation_log]
+    U = lhsdesign(n_test_forces, 9, 'criterion', 'maximin', 'iterations', 50);
     
     scale = @(u,r) r(1) + u.*diff(r);
     
+    % 1. Standard Linear Variables
     F1   = scale(U(:,1), F_range);
-    s1   = scale(U(:,2), s_range);
+    F2   = scale(U(:,2), F_range);
     t1   = scale(U(:,3), theta_range);
-    F2   = scale(U(:,4), F_range);
-    s2   = scale(U(:,5), s_range);
-    t2   = scale(U(:,6), theta_range);
-    tau1 = scale(U(:,7), tau_range);
-    tau2 = scale(U(:,8), tau_range);
-    tau3 = scale(U(:,9), tau_range);
+    t2   = scale(U(:,4), theta_range);
+    tau1 = scale(U(:,5), tau_range);
+    tau2 = scale(U(:,6), tau_range);
+    tau3 = scale(U(:,7), tau_range);
     
-    candidates = [F1 s1 t1 F2 s2 t2 tau1 tau2 tau3];
+    % 2. LINEAR SEPARATION SAMPLING (Simplified)
+    sep_min = s_sep_min; 
+    sep_max = diff(s_range); % Max possible separation
     
-    % 3. FILTER: Remove invalid points
-    valid_mask = abs(s1 - s2) >= s_separate_min;
-    valid_forces = candidates(valid_mask, :);
+    % Simple Linear Interpolation: Min + u * (Max - Min)
+    s_sep = sep_min + U(:,9) .* (sep_max - sep_min);
     
-    % 4. CHECK & SELECT: Ensure we have enough, then pick n_test_forces
-    num_survivors = size(valid_forces, 1);
-    if num_survivors < n_test_forces
-        error('Constraint s_separate_min is too strict! Only found %d valid forces out of %d. Increase pool size.', num_survivors, n_pool);
-    end
+    % 3. Midpoint & Sliding Logic (Same as before)
+    s_mid = scale(U(:,8), s_range);
     
-    % Pick the first n_test_forces valid ones
-    test_forces = valid_forces(1:n_test_forces, :);
+    s1 = zeros(n_test_forces, 1);
+    s2 = zeros(n_test_forces, 1);
+    beam_min = s_range(1);
+    beam_max = s_range(2);
     
-    % Flip so large s is first (swap force 1 and force 2 columns)
-    for i = 1:size(test_forces,1)
-        if test_forces(i,2) < test_forces(i,5)
-            test_forces(i,1:6) = [test_forces(i,4:6), test_forces(i,1:3)];
+    for i = 1:n_test_forces
+        delta = s_sep(i);
+        mid = s_mid(i);
+        
+        % Initial positions
+        p1 = mid - delta/2;
+        p2 = mid + delta/2;
+        
+        % Slide if out of bounds
+        if p1 < beam_min
+            shift = beam_min - p1;
+            p1 = p1 + shift;
+            p2 = p2 + shift;
+        elseif p2 > beam_max
+            shift = p2 - beam_max;
+            p2 = p2 - shift;
+            p1 = p1 - shift;
         end
+        
+        s1(i) = p2; % Store larger position in s1
+        s2(i) = p1;
     end
+    
+    test_forces = [F1, s1, t1, F2, s2, t2, tau1, tau2, tau3];
 end
 
 

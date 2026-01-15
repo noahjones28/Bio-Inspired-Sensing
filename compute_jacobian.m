@@ -1,6 +1,6 @@
-function Jw = compute_jacobian(p, tau_array, S)
+function [Jw, param_scales] = compute_jacobian(p, tau_array, S)
     %% ABOUT
-    % Computes normalized Jacobian of get_proximal_values using central difference
+    % Computes the whitened (noise-normalized) Jacobian using central difference
     
     % Input:
     % p: Nx6 array [F1, S, theta1, F2, s2, theta2; ...]
@@ -8,7 +8,8 @@ function Jw = compute_jacobian(p, tau_array, S)
     % S: Linkage
     
     % Output:
-    % Jw: the whitened (noise-normalized), nondimensionalized sensitivity matrix (jacobian) 
+    % Jw: the whitened (noise-normalized), nondimensionalized sensitivity matrix (jacobian)
+    % param_scales: helpful for calculating covariance matrix
     
     
     %% SETUP
@@ -22,13 +23,12 @@ function Jw = compute_jacobian(p, tau_array, S)
 
     % Parameters
     eps = 1e-3; % Base step size
-    print_output = false; % Print smallest singular value
-    % Per-channel standard deviation of the error between hardware measurements and model predictions.
-    % This error captures model mismatch, hysteresis, non-elastic bending, and measurement uncertainty.
-    % Estimated from 40+ hardware experiments.
-    sigma = [0.00173, 0.01598, 0.01215,	0.06838, 0.06938, 0.09147];
+    print_output = true; % Print smallest singular value
+    % Per-channel standard deviation of the random noise: sensor noise, non-perpendicular force application, hysteresis 
+    %sigma = [0.00173, 0.01598, 0.01215,	0.06838, 0.06938, 0.09147];
+    sigma = [8.61156e-05	0.003051509	0.003051509	0.005040455	0.028604074	0.028604074];
     range_force = 1.0; % Newtons (Max Operating Range)
-    range_pos = 0.2;    % Meters (Max Operating Range)
+    range_pos = 0.18;    % Meters (Max Operating Range)
     range_theta = 2*pi; % Radians (Max Operating Range)
     wrench_scales = sigma'; % Output Scale: We want 1.0 to represent "1 unit of Noise"
     param_scales = [range_force; range_pos; range_theta; ... % Input Scale: We want 1.0 to represent "Full Scale Input"
