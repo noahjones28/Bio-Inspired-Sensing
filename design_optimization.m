@@ -98,39 +98,39 @@ function cost = objective_scalar(x, test_forces, design)
     % Split inputs
     force_inputs = test_forces(:, 1:6);
     tau_arrays = test_forces(:, end-2:end);
+
+    % Get force_to_wrench jacobians for all test loads
     J_cell = compute_jacobian(force_inputs, tau_arrays, S);
     
-    % --- PARAMETERS ---
-    sigma_threshold = 3.0;  % 3σ confidence (99.7% certain signal is real)
-    leak_slope = 0.01;      % Guidance for "blind" cases (1% slope)
+    % Sigmoid parameters
+    target_threshold = 3.0;  % Target: The specific singular value where we want the transition to happen.
+    k = 2.0;  % Steepness (k): Controls width of the "Transition Zone." Higher k = stricter, binary "Pass/Fail". Lower k = smoother, gentler transition.
+    leak_slope = 0.01; % Leak (alpha): The gentle slope that keeps the optimizer moving even when the Sigmoid is flat.    
     
+    % Initialize total score
     total_score = 0;
     
+    % Loop through test load jacobians
     for i = 1:size(J_cell,1)
-        s_vals = svd(J_cell{i});
-        min_sv = s_vals(end); % The bottleneck
+        s_vals = svd(J_cell{i}); % Get singular values
+        min_sv = s_vals(end); % Get min singular value
         
-        % Calculate raw margin
-        margin = min_sv - sigma_threshold;
+        % 1. Calculate margin
+        margin = min_sv - target_threshold;
         
-        if margin > 0
-            % CASE A: SUCCESS (Above Threshold)
-            % Use LOG for Diminishing Returns.
-            % We add 1 so that margin=0 gives score=0.
-            score = log(margin + 1); 
-            
-        else
-            % CASE B: FAILURE (Below Threshold)
-            % Use LINEAR LEAK for Guidance.
-            % Score is negative (penalty), getting worse as we get further from threshold.
-            % Slope is gentle so it doesn't distract from keeping winners alive.
-            score = leak_slope * margin; 
-        end
+        % 2. Sigmoid score (The "Strategic Filter") S(x) = 1 / (1 + e^-k(x))
+        % This naturally saturates to 1 (Safe Win) and 0 (Lost Cause)
+        sigmoid_part = 1 / (1 + exp(-k * margin));
         
-        total_score = total_score + score;
+        % 3. Leak score (The "Guidance")
+        % Adds a tiny gradient everywhere so the optimizer is never truly blind.
+        leak_part = leak_slope * min_sv;
+        
+        % Total utility
+        total_score = total_score + (sigmoid_part + leak_part);
     end
     
-    % Negate for Minimizer
+    % Negate for Minimizer (Maximize Score = Minimize Cost)
     cost = -total_score;
 end
 
