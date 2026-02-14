@@ -2,7 +2,7 @@ close all;
 clc;
 
 % Paramaters
-n_test_forces = 100;
+n_test_forces = 20;
 F_range = [0.2, 1.2]; 
 s_range = [0.02, 0.20]; 
 theta_range = [0, 2*pi];

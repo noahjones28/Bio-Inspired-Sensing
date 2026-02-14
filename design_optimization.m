@@ -19,7 +19,7 @@ function design_optimization(design, n_test_forces)
     theta_range = [0, 2*pi];
     tau_range = [0, 1.5];
     s_sep_min = 0.02;
-    Yield_Strength_PLA = 56e6;
+    yield_strength = 56e6; %PC
 
     % Generate Test Forces
     test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_sep_min);
@@ -40,7 +40,7 @@ function design_optimization(design, n_test_forces)
         
         % A. Check Safety (Constraint)
         % Returns c <= 0 if Safe.
-        [c, ~] = safety_constraint(x_curr, test_forces, design, Yield_Strength_PLA);
+        [c, ~] = safety_constraint(x_curr, test_forces, design, yield_strength);
         
         if any(c > 0)
             % Design is UNSAFE (FOS < 1). Discard.
@@ -79,7 +79,7 @@ function design_optimization(design, n_test_forces)
     % Run Optimization
     [x_final, fval, ~, ~] = fmincon(@(x) objective_scalar(x, test_forces, design), ...
                                     x0, [], [], [], [], lb, ub, ...
-                                    @(x) safety_constraint(x, test_forces, design, Yield_Strength_PLA), options);
+                                    @(x) safety_constraint(x, test_forces, design, yield_strength), options);
     
     % Results
     fprintf('\n=== OPTIMIZATION COMPLETE ===\n');
