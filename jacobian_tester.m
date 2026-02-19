@@ -2,11 +2,11 @@ close all;
 clc;
 
 % Paramaters
-n_test_forces = 20;
-F_range = [0.2, 1.2]; 
+n_test_forces = 60;
+F_range = [0.3, 1.5]; 
 s_range = [0.02, 0.20]; 
 theta_range = [0, 2*pi];
-tau_range = [0, 1.5];
+tau_range = [0, 3];
 s_sep_min = 0.02;
 
 % Get test forces
@@ -16,23 +16,27 @@ test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range,
 [Jw, param_scales] = compute_jacobian(test_forces(:, 1:6), test_forces(:, end-2:end));
 
 % Storage
-sigma_mins = zeros(n_test_forces, 1);
+cond_nums = zeros(n_test_forces, 1);
 uncertainties = zeros(n_test_forces, 6);
 
 for i = 1:n_test_forces
-    % Get SVD
-    [U, S, V] = svd(Jw{i});
-    sigma_mins(i) = S(end);
+    % Get condition number of Jacobian
+    k = cond(Jw{i});
+    cond_nums(i) = k;
+
     % Compute Physical Uncertainties
     [Cov_phys, Sigmas_phys] = compute_covariance_phys(Jw{i}, param_scales);
     uncertainties(i,:) = Sigmas_phys';
 end
 
+% Take the mean 
+cond_nums_mean = sum(cond_nums)/n_test_forces;
+
 % Print results
-fprintf('Mean of min singular values: %.6e\n\n', mean(sigma_mins));
+fprintf('Mean condition number: %.6e\n\n', cond_nums_mean);
 
 % Assess reliability 
-assess_performance_visual(test_forces, sigma_mins)
+%assess_performance_visual(test_forces, sigma_mins)
 
 % PLOT THE RESULTS
 plot_theoretical_bounds(uncertainties, test_forces, param_scales);
@@ -41,14 +45,21 @@ plot_theoretical_bounds(uncertainties, test_forces, param_scales);
 %% GENERATE TEST FORCES
 function test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_sep_min)
     rng(1234);
-    
-    % We need 9 variables: 
-    % [F1, F2, t1, t2, tau1, tau2, tau3, s_midpoint, s_separation_log]
+
+    % Generate 9 LHS variables with good space-filling properties:
+    %   U(:,1) = F1 magnitude
+    %   U(:,2) = F2 magnitude
+    %   U(:,3) = theta1 angle
+    %   U(:,4) = theta2 angle
+    %   U(:,5) = tau1 tendon tension
+    %   U(:,6) = tau2 tendon tension
+    %   U(:,7) = tau3 tendon tension
+    %   U(:,8) = s1 position (distal force)
+    %   U(:,9) = s2 position (proximal force)
     U = lhsdesign(n_test_forces, 9, 'criterion', 'maximin', 'iterations', 50);
-    
     scale = @(u,r) r(1) + u.*diff(r);
-    
-    % 1. Standard Linear Variables
+
+    % Scale force magnitudes, angles, and tendon tensions to their ranges
     F1   = scale(U(:,1), F_range);
     F2   = scale(U(:,2), F_range);
     t1   = scale(U(:,3), theta_range);
@@ -56,45 +67,26 @@ function test_forces = generate_test_forces(n_test_forces, F_range, s_range, the
     tau1 = scale(U(:,5), tau_range);
     tau2 = scale(U(:,6), tau_range);
     tau3 = scale(U(:,7), tau_range);
-    
-    % 2. LINEAR SEPARATION SAMPLING (Simplified)
-    sep_min = s_sep_min; 
-    sep_max = diff(s_range); % Max possible separation
-    
-    % Simple Linear Interpolation: Min + u * (Max - Min)
-    s_sep = sep_min + U(:,9) .* (sep_max - sep_min);
-    
-    % 3. Midpoint & Sliding Logic (Same as before)
-    s_mid = scale(U(:,8), s_range);
-    
-    s1 = zeros(n_test_forces, 1);
-    s2 = zeros(n_test_forces, 1);
-    beam_min = s_range(1);
-    beam_max = s_range(2);
-    
-    for i = 1:n_test_forces
-        delta = s_sep(i);
-        mid = s_mid(i);
-        
-        % Initial positions
-        p1 = mid - delta/2;
-        p2 = mid + delta/2;
-        
-        % Slide if out of bounds
-        if p1 < beam_min
-            shift = beam_min - p1;
-            p1 = p1 + shift;
-            p2 = p2 + shift;
-        elseif p2 > beam_max
-            shift = p2 - beam_max;
-            p2 = p2 - shift;
-            p1 = p1 - shift;
-        end
-        
-        s1(i) = p2; % Store larger position in s1
-        s2(i) = p1;
+
+    % Sample both positions independently across the full beam
+    s_raw1 = scale(U(:,8), s_range);
+    s_raw2 = scale(U(:,9), s_range);
+
+    % Sort so s1 is always the more distal force
+    s1 = max(s_raw1, s_raw2);
+    s2 = min(s_raw1, s_raw2);
+
+    % Resample any pairs that violate minimum separation
+    too_close = (s1 - s2) < s_sep_min;
+    while any(too_close)
+        n_fix = sum(too_close);
+        s_new1 = s_range(1) + rand(n_fix,1) * diff(s_range);
+        s_new2 = s_range(1) + rand(n_fix,1) * diff(s_range);
+        s1(too_close) = max(s_new1, s_new2);
+        s2(too_close) = min(s_new1, s_new2);
+        too_close = (s1 - s2) < s_sep_min;
     end
-    
+
     test_forces = [F1, s1, t1, F2, s2, t2, tau1, tau2, tau3];
 end
 

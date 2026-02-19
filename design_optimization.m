@@ -1,25 +1,26 @@
-function design_optimization(design, n_test_forces)
+function design_optimization(design)
     close all;
 
     %% CONFIGURATION & SETUP
     % Select Design & Bounds
     if design == "elliptical_20_links"
-        % % [r_major_1, r_minor_1, Φ_1, ...,r_major_20, r_minor_20, Φ_20]  
+        % [r_major_1, r_minor_1, Φ_1, ...,r_major_20, r_minor_20, Φ_20] 
         lb = repmat([1e-3, 1e-3, 0], 1, 20);
-        ub = repmat([5e-3, 5e-3, pi], 1, 20);
+        ub = repmat([6e-3, 6e-3, pi/2], 1, 20);
     else
         error("Invalid design selected!");
     end
 
     % Parameters
     n_global_samples = 3;    % Samples for Global Search
-    n_test_forces = 30; % In Design of Experiments (DOE), the standard rule of thumb is 10 samples per dimension.
-    F_range = [0.3, 1.0]; 
+    n_test_forces = 60; % In Design of Experiments (DOE), the standard rule of thumb is 10 samples per dimension.
+    F_range = [0.3, 1.5]; 
     s_range = [0.02, 0.20]; 
     theta_range = [0, 2*pi];
-    tau_range = [0, 1.5];
+    tau_range = [0, 3];
     s_sep_min = 0.02;
-    yield_strength = 56e6; %PC
+    x_typical = (lb + ub) / 2; 
+    yield_strength = 62e6; % Polycarbonate (PC) Tensile Strength (X-Y)
 
     % Generate Test Forces
     test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_sep_min);
@@ -40,7 +41,7 @@ function design_optimization(design, n_test_forces)
         
         % A. Check Safety (Constraint)
         % Returns c <= 0 if Safe.
-        [c, ~] = safety_constraint(x_curr, test_forces, design, yield_strength);
+        [c, ~] = safety_constraint(x_curr, design, yield_strength, F_range, s_range, theta_range);
         
         if any(c > 0)
             % Design is UNSAFE (FOS < 1). Discard.
@@ -70,16 +71,17 @@ function design_optimization(design, n_test_forces)
     options = optimoptions('fmincon', ...
         'Algorithm', 'sqp', ...
         'Display', 'iter-detailed', ...
-        'UseParallel', false, ...         % Disabled as requested
-        'MaxIterations', 50, ...
-        'StepTolerance', 1e-6, ...
+        'UseParallel', false, ...         % Disabled
+        'MaxIterations', 100, ...
+        'FunctionTolerance', 1e-4, ...
         'ConstraintTolerance', 1e-3, ...
+        'TypicalX', x_typical, ...
         'OutputFcn', @plot_best_output);
 
     % Run Optimization
     [x_final, fval, ~, ~] = fmincon(@(x) objective_scalar(x, test_forces, design), ...
                                     x0, [], [], [], [], lb, ub, ...
-                                    @(x) safety_constraint(x, test_forces, design, yield_strength), options);
+                                    @(x) safety_constraint(x, design, yield_strength, F_range, s_range, theta_range), options);
     
     % Results
     fprintf('\n=== OPTIMIZATION COMPLETE ===\n');
@@ -100,92 +102,89 @@ function cost = objective_scalar(x, test_forces, design)
     tau_arrays = test_forces(:, end-2:end);
 
     % Get force_to_wrench jacobians for all test loads
-    J_cell = compute_jacobian(force_inputs, tau_arrays, S);
-    
-    % Sigmoid parameters
-    target_threshold = 3.0;  % Target: The specific singular value where we want the transition to happen.
-    k = 2.0;  % Steepness (k): Controls width of the "Transition Zone." Higher k = stricter, binary "Pass/Fail". Lower k = smoother, gentler transition.
-    leak_slope = 0.01; % Leak (alpha): The gentle slope that keeps the optimizer moving even when the Sigmoid is flat.    
+    J_cell = compute_jacobian(force_inputs, tau_arrays, S); 
     
     % Initialize total score
     total_score = 0;
     
     % Loop through test load jacobians
     for i = 1:size(J_cell,1)
-        s_vals = svd(J_cell{i}); % Get singular values
-        min_sv = s_vals(end); % Get min singular value
+        % Get condition number of Jacobian
+        k = cond(J_cell{i});
         
-        % 1. Calculate margin
-        margin = min_sv - target_threshold;
-        
-        % 2. Sigmoid score (The "Strategic Filter") S(x) = 1 / (1 + e^-k(x))
-        % This naturally saturates to 1 (Safe Win) and 0 (Lost Cause)
-        sigmoid_part = 1 / (1 + exp(-k * margin));
-        
-        % 3. Leak score (The "Guidance")
-        % Adds a tiny gradient everywhere so the optimizer is never truly blind.
-        leak_part = leak_slope * min_sv;
+        % Get score
+        score = -1/k;
         
         % Total utility
-        total_score = total_score + (sigmoid_part + leak_part);
+        total_score = total_score + score;
     end
     
-    % Negate for Minimizer (Maximize Score = Minimize Cost)
-    cost = -total_score;
+    % Take the mean 
+    mean_score = total_score/size(J_cell,1);
+    
+    % Cost function
+    cost = mean_score;
 end
 
 
 %% CONSTRAINT FUNCTION
-function [c, ceq] = safety_constraint(x, test_forces, design, yield_strength)
-    % Update the design before running forward model
+function [c, ceq] = safety_constraint(x, design, yield_strength, F_range, s_range, theta_range)
     S = update_design(x, design, false);
 
-    % Identify Worst-Case Load using Moment Estimator
-    % test_forces: [F1 s1 theta1 F2 s2 theta2]
-    F1 = test_forces(:, 1); s1 = test_forces(:, 2);
-    F2 = test_forces(:, 4); s2 = test_forces(:, 5);
-    
-    % Metric: Sum of Force * Distance (Moment Approximation)
-    moment_estimate = (F1 .* s1) + (F2 .* s2);
-    
-    % Pick index with highest moment potential
-    [~, max_idx] = max(moment_estimate);
-    worst_force = test_forces(max_idx, :);
-    worst_force = [worst_force(1:3);worst_force(4:6)];
-    tau_array = test_forces(max_idx, end-2:end);
-    
-    % Run Forward Model and teturns internal wrenches for the updated design under the worst load
-    [~, internal_wrenches] = forward_model(worst_force, tau_array, false, false, S); 
-    
-    % Extract Moments
-    Tx = internal_wrenches(:, 1);
-    Ty = internal_wrenches(:, 2);
-    Tz = internal_wrenches(:, 3);
-    
-    % Calculate FOS of each link
+    F_max = F_range(2);
+    s_tip = s_range(2);
+
+    % Zero tendon tension: least rigid, worst case for applied force stress
+    tau_worst = [0, 0, 0];
+
+    % Grid over force angles only
+    n_angles = 8;
+    thetas = linspace(0, 2*pi, n_angles + 1);
+    thetas(end) = [];  % remove duplicate 2*pi
+    [T1, T2] = ndgrid(thetas, thetas);
+    combos = [T1(:), T2(:)];
+
     r_maj_vec = x(1:3:end)';
     r_min_vec = x(2:3:end)';
-    [~, fos_array] = calc_ellipse_vonmises(r_maj_vec, r_min_vec, Tx, Ty, Tz, yield_strength);
-    
-    % 6. Define Constraint
-    % We require ALL links to have FOS >= 1.0
-    % Optimization expects c <= 0, so: 1.0 - min(FOS) <= 0
-    c = 1.0 - min(fos_array);
+    worst_fos = inf;
+
+    for k = 1:size(combos, 1)
+        worst_force = [F_max, s_tip, combos(k,1);
+                       F_max, s_tip, combos(k,2)];
+
+        [~, internal_wrenches] = forward_model(worst_force, tau_worst, false, false, S);
+
+        Tx = internal_wrenches(:, 1);
+        Ty = internal_wrenches(:, 2);
+        Tz = internal_wrenches(:, 3);
+
+        [~, fos_array] = calc_ellipse_vonmises(r_maj_vec, r_min_vec, Tx, Ty, Tz, yield_strength);
+
+        worst_fos = min(worst_fos, min(fos_array));
+    end
+
+    c = 1.0 - worst_fos;
     ceq = [];
 end
-
 
 %% GENERATE TEST FORCES
 function test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_sep_min)
     rng(1234);
-    
-    % We need 9 variables: 
-    % [F1, F2, t1, t2, tau1, tau2, tau3, s_midpoint, s_separation_log]
+
+    % Generate 9 LHS variables with good space-filling properties:
+    %   U(:,1) = F1 magnitude
+    %   U(:,2) = F2 magnitude
+    %   U(:,3) = theta1 angle
+    %   U(:,4) = theta2 angle
+    %   U(:,5) = tau1 tendon tension
+    %   U(:,6) = tau2 tendon tension
+    %   U(:,7) = tau3 tendon tension
+    %   U(:,8) = s1 position (distal force)
+    %   U(:,9) = s2 position (proximal force)
     U = lhsdesign(n_test_forces, 9, 'criterion', 'maximin', 'iterations', 50);
-    
     scale = @(u,r) r(1) + u.*diff(r);
-    
-    % 1. Standard Linear Variables
+
+    % Scale force magnitudes, angles, and tendon tensions to their ranges
     F1   = scale(U(:,1), F_range);
     F2   = scale(U(:,2), F_range);
     t1   = scale(U(:,3), theta_range);
@@ -193,45 +192,26 @@ function test_forces = generate_test_forces(n_test_forces, F_range, s_range, the
     tau1 = scale(U(:,5), tau_range);
     tau2 = scale(U(:,6), tau_range);
     tau3 = scale(U(:,7), tau_range);
-    
-    % 2. LINEAR SEPARATION SAMPLING (Simplified)
-    sep_min = s_sep_min; 
-    sep_max = diff(s_range); % Max possible separation
-    
-    % Simple Linear Interpolation: Min + u * (Max - Min)
-    s_sep = sep_min + U(:,9) .* (sep_max - sep_min);
-    
-    % 3. Midpoint & Sliding Logic (Same as before)
-    s_mid = scale(U(:,8), s_range);
-    
-    s1 = zeros(n_test_forces, 1);
-    s2 = zeros(n_test_forces, 1);
-    beam_min = s_range(1);
-    beam_max = s_range(2);
-    
-    for i = 1:n_test_forces
-        delta = s_sep(i);
-        mid = s_mid(i);
-        
-        % Initial positions
-        p1 = mid - delta/2;
-        p2 = mid + delta/2;
-        
-        % Slide if out of bounds
-        if p1 < beam_min
-            shift = beam_min - p1;
-            p1 = p1 + shift;
-            p2 = p2 + shift;
-        elseif p2 > beam_max
-            shift = p2 - beam_max;
-            p2 = p2 - shift;
-            p1 = p1 - shift;
-        end
-        
-        s1(i) = p2; % Store larger position in s1
-        s2(i) = p1;
+
+    % Sample both positions independently across the full beam
+    s_raw1 = scale(U(:,8), s_range);
+    s_raw2 = scale(U(:,9), s_range);
+
+    % Sort so s1 is always the more distal force
+    s1 = max(s_raw1, s_raw2);
+    s2 = min(s_raw1, s_raw2);
+
+    % Resample any pairs that violate minimum separation
+    too_close = (s1 - s2) < s_sep_min;
+    while any(too_close)
+        n_fix = sum(too_close);
+        s_new1 = s_range(1) + rand(n_fix,1) * diff(s_range);
+        s_new2 = s_range(1) + rand(n_fix,1) * diff(s_range);
+        s1(too_close) = max(s_new1, s_new2);
+        s2(too_close) = min(s_new1, s_new2);
+        too_close = (s1 - s2) < s_sep_min;
     end
-    
+
     test_forces = [F1, s1, t1, F2, s2, t2, tau1, tau2, tau3];
 end
 

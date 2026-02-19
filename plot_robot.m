@@ -6,7 +6,7 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
     plot_tendons = true;
     plot_disks = true;
     export_plot = false;
-    yield_strength = 56e6; % Polycarbonate (PC)
+    yield_strength = 62e6; % Polycarbonate (PC)
     colors = {'#FF00FF', '#00FFFF'}; % Colors for different forces
 
     if nargin < 6 % if doPlot was not provided
@@ -25,7 +25,7 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
     elseif doPlot && plot_geometry
         close;
         if vonmises_fos_overlay
-            S = vonmises_fos_overlay_func(S,internal_wrenches,yield_strength);
+            [S, fos_values] = vonmises_fos_overlay_func(S,internal_wrenches,yield_strength);
         end
         S.plotq(q) % plot geometry 
         if vonmises_fos_overlay
@@ -119,6 +119,21 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
         end
     end
 
+    % Plot FOS text labels for links with FOS < 1
+    if vonmises_fos_overlay && exist('fos_values', 'var')
+        points_per_link_fos = num_sig / S.N;
+        for i = 1:S.N
+            if fos_values(i) < 1
+                mid_idx = round((i - 0.5) * points_per_link_fos);
+                mid_idx = max(1, min(mid_idx, num_sig));
+                fos_color = S.CVRods{i}(end).Link.color;
+                text(pos_xyz(1, mid_idx), pos_xyz(2, mid_idx) + 0.006, pos_xyz(3, mid_idx), ...
+                    sprintf('%.2f', fos_values(i)), ...
+                    'FontWeight', 'bold', 'Color', fos_color, 'FontSize', 10, ...
+                    'HorizontalAlignment', 'center');
+            end
+        end
+    end
     
     % Plot deflected tendons
     if plot_tendons

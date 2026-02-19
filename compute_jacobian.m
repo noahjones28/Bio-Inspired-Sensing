@@ -24,9 +24,9 @@ function [Jw, param_scales] = compute_jacobian(p, tau_array, S)
     % Parameters
     eps = 1e-3; % Base step size
     print_output = true; % Print smallest singular value
-    % Per-channel standard deviation of the random noise: resolution from ATI spec sheet 
+    % SENSING RANGES from ATI spec sheet 
     sigma = [1, 1, 1, 60, 20, 20];
-    range_force = 1.5; % Newtons (Max Operating Range)
+    range_force = 1.2; % Newtons (Max Operating Range)
     range_pos = 0.18;    % Meters (Max Operating Range)
     range_theta = 2*pi; % Radians (Max Operating Range)
     wrench_scales = sigma'; % Output Scale: We want 1.0 to represent "1 unit of Noise"
@@ -70,9 +70,11 @@ function [Jw, param_scales] = compute_jacobian(p, tau_array, S)
         % Apply input and output scalings to get noise-whitened, nondimensionalized Jacobian
         Jw{i} = diag(1 ./ wrench_scales) * J_raw * diag(param_scales);
         
-        sv = svd(Jw{i});
+        % optional if print_output
         if print_output
-            fprintf('Smallest singular value (%d): %.6e\n', i, sv(end));
+            % Get condition number
+            k = cond(Jw{i});
+            fprintf('Condition number (%d): %.6e\n', i, k);
         end
     end
 end
