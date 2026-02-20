@@ -23,7 +23,7 @@ function [Jw, param_scales] = compute_jacobian(p, tau_array, S)
 
     % Parameters
     eps = 1e-3; % Base step size
-    print_output = true; % Print smallest singular value
+    print_output = false; % Print smallest singular value
     % SENSING RANGES from ATI spec sheet 
     sigma = [1, 1, 1, 60, 20, 20];
     range_force = 1.2; % Newtons (Max Operating Range)

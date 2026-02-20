@@ -4,7 +4,7 @@ function design_optimization(design)
     %% CONFIGURATION & SETUP
     % Select Design & Bounds
     if design == "elliptical_20_links"
-        % [r_major_1, r_minor_1, Φ_1, ...,r_major_20, r_minor_20, Φ_20] 
+        % [ry_1, rz_1, Φ_1, ...,ry_20, rz_20, Φ_20] 
         lb = repmat([1e-3, 1e-3, 0], 1, 20);
         ub = repmat([6e-3, 6e-3, pi/2], 1, 20);
     else
@@ -25,45 +25,61 @@ function design_optimization(design)
     % Generate Test Forces
     test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_sep_min);
     
-    %% STAGE 1: CONSTRAINED GLOBAL SEARCH (LHS)
+    %% STAGE 1: GLOBAL SEARCH (LHS)
     fprintf('\n=== STAGE 1: Global Feasible Search (%d samples) ===\n', n_global_samples);
     
+    % Tighten radii lower bounds to increase feasibility rate.
+    % Thin cross-sections almost always violate the safety constraint,
+    % so we avoid wasting samples there. Angles are left unchanged.
+    % Only affects sampling — fmincon still uses the original lb.
+    lb_global = lb;
+    lb_global(1:3:end) = lb(1:3:end) + 0.2 * (ub(1:3:end) - lb(1:3:end));  % r_major
+    lb_global(2:3:end) = lb(2:3:end) + 0.2 * (ub(2:3:end) - lb(2:3:end));  % r_minor
+    
+    % Generate space-filling samples using Latin Hypercube Sampling
     rng(1234);
-    % Try 50 different arrangements and pick the best one.  'maximin': Maximize distance between points
     U = lhsdesign(n_global_samples, length(lb), 'criterion', 'maximin', 'iterations', 50);
-    X_samples = lb + U .* (ub - lb);
+    X_samples = lb_global + U .* (ub - lb_global);
     
     sample_costs = Inf(n_global_samples, 1);
+    n_feasible = 0;
     
-    % Standard Loop
     for i = 1:n_global_samples
         x_curr = X_samples(i,:);
         
-        % A. Check Safety (Constraint)
-        % Returns c <= 0 if Safe.
+        % Check safety constraint: c <= 0 means safe (FOS >= 1)
         [c, ~] = safety_constraint(x_curr, design, yield_strength, F_range, s_range, theta_range);
         
         if any(c > 0)
-            % Design is UNSAFE (FOS < 1). Discard.
-            sample_costs(i) = Inf; 
+            % INFEASIBLE: Assign a large base cost (1e20) so any feasible design
+            % always ranks better. Add the violation magnitude so that among
+            % infeasible designs, the least-violated one is preferred.
+            sample_costs(i) = 1e20 + max(c);
         else
-            % Design is SAFE. Calculate Objective.
+            % FEASIBLE: Evaluate the actual objective function
             sample_costs(i) = objective_scalar(x_curr, test_forces, design);
+            n_feasible = n_feasible + 1;
         end
         
         if mod(i, 20) == 0, fprintf('LHS Sample %d/%d processed.\n', i, n_global_samples); end
     end
     
-    % Find Best Safe Start
+    % Report feasibility rate
+    n_infeasible = n_global_samples - n_feasible;
+    fprintf('Feasibility: %d/%d (%.1f%%) feasible, %d infeasible.\n', ...
+        n_feasible, n_global_samples, 100*n_feasible/n_global_samples, n_infeasible);
+    
+    % Select the best sample as the starting point for fmincon.
+    % If no feasible design was found, this returns the least infeasible one,
+    % giving fmincon the best chance of reaching feasibility.
     [best_cost, idx] = min(sample_costs);
     
-    if isinf(best_cost)
-        fprintf('WARNING: No feasible design found in LHS. Starting from Upper Bound.\n');
-        x0 = ub; 
+    if best_cost >= 1e20
+        fprintf('WARNING: No feasible design found in LHS. Starting from least infeasible.\n');
     else
-        x0 = X_samples(idx, :);
         fprintf('Found feasible start! Cost: %.4f\n', best_cost);
     end
+    x0 = X_samples(idx, :);
 
     %% STAGE 2: LOCAL REFINEMENT (fmincon)
     fprintf('\n=== STAGE 2: Local Refinement (fmincon) ===\n');
@@ -218,7 +234,7 @@ end
 
 %% PLOT BEST OUTPUT
 function stop = plot_best_output(x, optimValues, state)
-    persistent best_fval best_x iter_history fval_history fig_handle
+    persistent best_fval best_x iter_history fval_history fig_handle xlsx_file
     stop = false;
     
     switch state
@@ -229,19 +245,28 @@ function stop = plot_best_output(x, optimValues, state)
             fval_history = [];
             fig_handle = figure('Name', 'Optimization Progress');
             
+            % Create Excel file with headers
+            xlsx_file = 'Design_Optimization_Results.xlsx';
+            n_vars = length(x);
+            headers = [{'Iteration', 'fval'}, arrayfun(@(i) sprintf('x%d', i), 1:n_vars, 'UniformOutput', false)];
+            writecell(headers, xlsx_file, 'Sheet', 1, 'Range', 'A1');
+            
         case 'iter'
+            % Append row to Excel
+            row_num = optimValues.iteration + 2; % +1 for header, +1 because iterations start at 0
+            row_data = [optimValues.iteration, optimValues.fval, x];
+            writematrix(row_data, xlsx_file, 'Sheet', 1, 'Range', sprintf('A%d', row_num));
+            
             if optimValues.fval < best_fval
                 best_fval = optimValues.fval;
                 best_x = x;
                 iter_history(end+1) = optimValues.iteration;
                 fval_history(end+1) = best_fval;
                 
-                % Print to console
                 fprintf('Iter %d | Best fval: %.3e | Best x: ', optimValues.iteration, best_fval);
                 fprintf('%.3e ', best_x);
                 fprintf('\n');
                 
-                % Update plot
                 figure(fig_handle); clf;
                 plot(iter_history, fval_history, 'b-o', 'LineWidth', 1.5);
                 xlabel('Iteration'); ylabel('Objective Value');
@@ -251,6 +276,5 @@ function stop = plot_best_output(x, optimValues, state)
             end
             
         case 'done'
-            % Keep figure open
     end
 end
