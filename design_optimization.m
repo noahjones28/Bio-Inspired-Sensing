@@ -12,14 +12,14 @@ function design_optimization(design)
     end
 
     % Parameters
-    n_global_samples = 3;    % Samples for Global Search
+    n_global_samples = 1;    % Samples for Global Search
     n_test_forces = 60; % In Design of Experiments (DOE), the standard rule of thumb is 10 samples per dimension.
     F_range = [0.3, 1.5]; 
-    s_range = [0.02, 0.20]; 
+    s_range = [0.02, 0.20];
     theta_range = [0, 2*pi];
     tau_range = [0, 3];
     s_sep_min = 0.02;
-    x_typical = (lb + ub) / 2; 
+    x_typical = (lb + ub) / 2;
     yield_strength = 62e6; % Polycarbonate (PC) Tensile Strength (X-Y)
 
     % Generate Test Forces
@@ -28,13 +28,10 @@ function design_optimization(design)
     %% STAGE 1: GLOBAL SEARCH (LHS)
     fprintf('\n=== STAGE 1: Global Feasible Search (%d samples) ===\n', n_global_samples);
     
-    % Tighten radii lower bounds to increase feasibility rate.
-    % Thin cross-sections almost always violate the safety constraint,
-    % so we avoid wasting samples there. Angles are left unchanged.
-    % Only affects sampling — fmincon still uses the original lb.
+    % Tighten radii lower bounds for sampling to avoid thin infeasible designs
     lb_global = lb;
-    lb_global(1:3:end) = lb(1:3:end) + 0.2 * (ub(1:3:end) - lb(1:3:end));  % r_major
-    lb_global(2:3:end) = lb(2:3:end) + 0.2 * (ub(2:3:end) - lb(2:3:end));  % r_minor
+    lb_global(1:3:end) = 2e-3;  % ry
+    lb_global(2:3:end) = 2e-3;  % rz
     
     % Generate space-filling samples using Latin Hypercube Sampling
     rng(1234);
@@ -42,6 +39,7 @@ function design_optimization(design)
     X_samples = lb_global + U .* (ub - lb_global);
     
     sample_costs = Inf(n_global_samples, 1);
+    sample_constraints = Inf(n_global_samples, 1);
     n_feasible = 0;
     
     for i = 1:n_global_samples
@@ -49,6 +47,7 @@ function design_optimization(design)
         
         % Check safety constraint: c <= 0 means safe (FOS >= 1)
         [c, ~] = safety_constraint(x_curr, design, yield_strength, F_range, s_range, theta_range);
+        sample_constraints(i) = max(c);
         
         if any(c > 0)
             % INFEASIBLE: Assign a large base cost (1e20) so any feasible design
@@ -61,28 +60,39 @@ function design_optimization(design)
             n_feasible = n_feasible + 1;
         end
         
-        if mod(i, 20) == 0, fprintf('LHS Sample %d/%d processed.\n', i, n_global_samples); end
+        if mod(i, 10) == 0, fprintf('LHS Sample %d/%d processed.\n', i, n_global_samples); end
     end
     
-    % Report feasibility rate
-    n_infeasible = n_global_samples - n_feasible;
-    fprintf('Feasibility: %d/%d (%.1f%%) feasible, %d infeasible.\n', ...
-        n_feasible, n_global_samples, 100*n_feasible/n_global_samples, n_infeasible);
-    
-    % Select the best sample as the starting point for fmincon.
-    % If no feasible design was found, this returns the least infeasible one,
-    % giving fmincon the best chance of reaching feasibility.
+    % Select best sample and report
     [best_cost, idx] = min(sample_costs);
-    
+    fprintf('Global search: %d/%d samples passed safety constraint (%.1f%%)\n', ...
+        n_feasible, n_global_samples, 100*n_feasible/n_global_samples);
+    x0 = X_samples(idx, :);
     if best_cost >= 1e20
-        fprintf('WARNING: No feasible design found in LHS. Starting from least infeasible.\n');
+        fprintf('WARNING: No feasible design found. Starting from least infeasible.\n');
     else
         fprintf('Found feasible start! Cost: %.4f\n', best_cost);
     end
-    x0 = X_samples(idx, :);
+    fprintf('x0: '); fprintf('%.4f ', x0); fprintf('\n');
+    
+    % Save Global Search Results
+    headers = [{'Sample', 'Cost', 'Constraint'}, ...
+               arrayfun(@(i) sprintf('x%d', i), 1:length(lb), 'UniformOutput', false)];
+    writecell(headers, 'Global_Search_Results.xlsx', 'Sheet', 1, 'Range', 'A1');
+    writematrix([(1:n_global_samples)', sample_costs, sample_constraints, X_samples], ...
+                'Global_Search_Results.xlsx', 'Sheet', 1, 'Range', 'A2');
+    fprintf('Global search results saved to Global_Search_Results.xlsx\n');
+
 
     %% STAGE 2: LOCAL REFINEMENT (fmincon)
     fprintf('\n=== STAGE 2: Local Refinement (fmincon) ===\n');
+    
+    % Fix phi_1 (Don't rotate first segment to preserve joint axis)
+    fixed_idx = 3;                          % phi_1 position in 60-var vector
+    fixed_val = 0;  
+    opt_idx = setdiff(1:length(x0), fixed_idx);  % indices 1,2,4,5,...,60
+    % Helper: insert fixed variable back into full 60-var vector
+    expand = @(x_red) insertval(x_red, fixed_idx, fixed_val, length(x0));
     
     options = optimoptions('fmincon', ...
         'Algorithm', 'sqp', ...
@@ -91,14 +101,18 @@ function design_optimization(design)
         'MaxIterations', 100, ...
         'FunctionTolerance', 1e-4, ...
         'ConstraintTolerance', 1e-3, ...
-        'TypicalX', x_typical, ...
-        'OutputFcn', @plot_best_output);
+        'TypicalX', x_typical(opt_idx), ...
+        'FiniteDifferenceStepSize', 1e-4, ... % Larger step needed; default ~1e-8 is below noise floor of forward model
+        'OutputFcn', @(x,ov,st) plot_best_output(expand(x), ov, st));
 
     % Run Optimization
-    [x_final, fval, ~, ~] = fmincon(@(x) objective_scalar(x, test_forces, design), ...
-                                    x0, [], [], [], [], lb, ub, ...
-                                    @(x) safety_constraint(x, design, yield_strength, F_range, s_range, theta_range), options);
+    [x_final, fval, ~, ~] = fmincon(@(x) objective_scalar(expand(x), test_forces, design), ...
+                                    x0(opt_idx), [], [], [], [], lb(opt_idx), ub(opt_idx), ...
+                                    @(x) safety_constraint(expand(x), design, yield_strength, F_range, s_range, theta_range), options);
     
+    % Reconstruct full 60-variable result
+    x_final = expand(x_final);
+
     % Results
     fprintf('\n=== OPTIMIZATION COMPLETE ===\n');
     disp('Optimal Design Parameters:');
@@ -178,7 +192,9 @@ function [c, ceq] = safety_constraint(x, design, yield_strength, F_range, s_rang
 
         worst_fos = min(worst_fos, min(fos_array));
     end
-
+    
+    % We require ALL links to have FOS >= 1.0
+    % Optimization expects c <= 0, so: 1.0 - min(FOS) <= 0
     c = 1.0 - worst_fos;
     ceq = [];
 end
@@ -246,16 +262,26 @@ function stop = plot_best_output(x, optimValues, state)
             fig_handle = figure('Name', 'Optimization Progress');
             
             % Create Excel file with headers
-            xlsx_file = 'Design_Optimization_Results.xlsx';
+            xlsx_file = 'Local_Refinement_Results.xlsx';
             n_vars = length(x);
-            headers = [{'Iteration', 'fval'}, arrayfun(@(i) sprintf('x%d', i), 1:n_vars, 'UniformOutput', false)];
-            writecell(headers, xlsx_file, 'Sheet', 1, 'Range', 'A1');
+            headers = [{'Iteration', 'fval', 'Constraint', 'StepSize', 'FirstOrderOpt'}, ...
+                arrayfun(@(i) sprintf('x%d', i), 1:n_vars, 'UniformOutput', false)];
+            try
+                writecell(headers, xlsx_file, 'Sheet', 1, 'Range', 'A1');
+            catch
+                fprintf('Warning: Could not write to Excel (file open?). Continuing.\n');
+            end
             
         case 'iter'
             % Append row to Excel
             row_num = optimValues.iteration + 2; % +1 for header, +1 because iterations start at 0
-            row_data = [optimValues.iteration, optimValues.fval, x];
-            writematrix(row_data, xlsx_file, 'Sheet', 1, 'Range', sprintf('A%d', row_num));
+            row_data = [optimValues.iteration, optimValues.fval, optimValues.constrviolation, ...
+                optimValues.stepsize, optimValues.firstorderopt, x];
+            try
+                writematrix(row_data, xlsx_file, 'Sheet', 1, 'Range', sprintf('A%d', row_num));
+            catch
+                fprintf('Warning: Could not write iter %d to Excel.\n', optimValues.iteration);
+            end
             
             if optimValues.fval < best_fval
                 best_fval = optimValues.fval;
@@ -277,4 +303,11 @@ function stop = plot_best_output(x, optimValues, state)
             
         case 'done'
     end
+end
+
+%% HELPER FUNCTION
+function x_full = insertval(x_red, idx, val, n)
+    x_full = zeros(1, n);
+    x_full(idx) = val;
+    x_full(setdiff(1:n, idx)) = x_red;
 end

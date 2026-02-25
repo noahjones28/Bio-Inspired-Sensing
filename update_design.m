@@ -33,7 +33,7 @@ function S = update_design(r, design_name, do_save)
                 S.CVRods{i}(end).Link.b{1} = @(X1) r_minor;
                 
                 % Update rotation
-                if i > 1 % Don't rotate first segment to preserve joint
+                if i > 1 % Don't rotate first segment to preserve joint axis
                     theta = r(3*i);
                     M = rotateSingleLink(M, i, theta);  % rotate only link i
                     S.g_ini = M;

@@ -304,3 +304,26 @@ function draw_percentile_panel(x, p68, p95, p99, limit, unit_conv, y_lbl, t_str,
     ylim([-lim_plot*1.2, lim_plot*1.2]); 
     set(gca, 'Layer', 'top');
 end
+
+%% COVARIANCE
+function [Cov_phys, Sigmas_phys] = compute_covariance_phys(Jw, param_scales)
+    %% ABOUT
+    % Calculates physical covariance for a SINGLE Jacobian matrix.
+    % Input:
+    %   Jw:           The 6x6 (or MxN) whitened Jacobian matrix (double)
+    %   param_scales: The vector used to normalize the Jacobian columns
+    
+    %% COMPUTATION
+    % 1. Create Scaling Matrix
+    S_param = diag(param_scales);
+
+    % 2. Invert Fisher Info to get Normalized Covariance
+    %    (Using pinv for numerical stability)
+    Cov_norm = pinv(Jw' * Jw);
+    
+    % 3. Convert to Physical Units
+    Cov_phys = S_param * Cov_norm * S_param;
+    
+    % 4. Extract Standard Deviations (Sigmas)
+    Sigmas_phys = sqrt(diag(Cov_phys));
+end

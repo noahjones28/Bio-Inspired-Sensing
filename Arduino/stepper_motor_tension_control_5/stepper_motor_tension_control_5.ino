@@ -338,20 +338,18 @@ void adjustMicrosteps(int motorNum, float error) {
   } else if (motorNum == 4 || motorNum == 5) {
     if (returningToZero) {
       microsteps = 8;
-    } else if (error > 1.5) {
-      microsteps = 2;    // Coarse steps steps when very far from target
-    } else if (error > 0.75) {
-      microsteps = 2;    // Medium-coarse steps
-    } else if (error > 0.4) {
-      microsteps = 2;   // Medium steps
     } else if (error > 0.2) {
-      microsteps = 8;   // Medium-fine steps
+        microsteps = 8;       // coarsest
     } else if (error > 0.1) {
-      microsteps = 32;   // Fine steps
+        microsteps = 16;
+    } else if (error > 0.075) {
+        microsteps = 32;
     } else if (error > 0.05) {
-      microsteps = 128;  // Very fine steps
+        microsteps = 64;
+    } else if (error > 0.025) {
+        microsteps = 128;
     } else {
-      microsteps = 256;  // Finest steps when very close to target
+        microsteps = 256;     // finest
     }
   }
 
