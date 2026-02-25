@@ -1,14 +1,18 @@
-function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, force_idxs, doPlot, fig_handle)
+function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, fig_handle)
+    % Parameters
     plot_geometry = true;
+    vonmises_fos_overlay = true;
     plot_regulization_gaussian = true;
-    plot_tendons = false;
+    plot_tendons = true;
+    plot_disks = true;
     export_plot = false;
+    yield_strength = 62e6; % Polycarbonate (PC)
     colors = {'#FF00FF', '#00FFFF'}; % Colors for different forces
 
-    if nargin < 7 % if doPlot was not provided
+    if nargin < 6 % if doPlot was not provided
         doPlot = false; % default
     end
-    if nargin < 8 % if fig_handle was not provided
+    if nargin < 7 % if fig_handle was not provided
         fig_handle = false; % default
     end
     if doPlot && ishandle(fig_handle)
@@ -20,7 +24,13 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
         hold on; grid on; axis equal; axis vis3d; 
     elseif doPlot && plot_geometry
         close;
+        if vonmises_fos_overlay
+            [S, fos_values] = vonmises_fos_overlay_func(S,internal_wrenches,yield_strength);
+        end
         S.plotq(q) % plot geometry 
+        if vonmises_fos_overlay
+            add_fos_colorbar();  % Add colorbar AFTER plot is created
+        end
         figure(gcf); % Create new figure if handle not provided
     elseif doPlot
         close;
@@ -40,31 +50,32 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     rotate3d on; grid on; axis equal
     camlight(120, 45);
     
-    % Extract positions
-    num_divs = S.VLinks(2).npie-1; % number of divisions
-    quadpoints = S.CVRods{2}(2).Xs; % get quadpoints of just first div (each div has same quadpoints) 
-    quadpoints_per_div = length(quadpoints);
-    num_quadpoints_total = S.nsig;
-    num_quadpoints_link = quadpoints_per_div*num_divs;
+    % Parameters
+    num_sig = S.nsig;
     num_forces = size(distal_values, 1);
+    linkage_length = 0.1;
+    force_idxs = S.Fp_sig'; % List of quadpoint idxs with an applied force 
     
-    % Get transformation matrices at all points
-    g_all = S.FwdKinematics(q);
-    g_link = g_all((num_quadpoints_total-num_quadpoints_link)*4+1:end, :); % isolate transformation matrices of our main link
-    g_col4 = reshape(g_link(:,4), 4, num_quadpoints_link); % pick the 4th column of each block
-    position = g_col4(1:3, :); % extarct xyz position from each matrix
+    % get force vectors
+    force_vectors_cell = cellfun(@(f) f(0), S.Fp_vec, 'UniformOutput', false);
+    force_vectors = cell2mat(force_vectors_cell); % convert to matrix
+    force_vectors(1:3, :) = [];
+
+    % Get transformation matrices at all significant points
+    transform_matrices = S.FwdKinematics(q);
+    col_4 = reshape(transform_matrices(:,4), 4, num_sig); % pick the 4th column of each block
+    pos_xyz = col_4(1:3, :); % extarct xyz position from each matrix
     
     % Define undeflected backbone positions (along x-axis)
-    beam_length = 0.2;
-    undeflected_x = linspace(0, beam_length, num_quadpoints_link);
-    undeflected_backbone = [undeflected_x; zeros(1, num_quadpoints_link); zeros(1, num_quadpoints_link)];
+    undeflected_x = linspace(0, linkage_length, num_sig);
+    undeflected_backbone = [undeflected_x; zeros(1, num_sig); zeros(1, num_sig)];
 
     % Rotate force vectors
     force_vectors_rotated = zeros(size(force_vectors,1), size(force_vectors,2));
-    for i = 1:length(force_idxs)
+    for i = 1:size(force_vectors,2)
         idx = force_idxs(i);
         % Extract the i-th transformation matrix
-        T = g_link((idx-1)*4+1:idx*4, :);  % 4x4 matrix
+        T = transform_matrices((idx-1)*4+1:idx*4, :);  % 4x4 matrix
         
         % Extract the 3x3 rotation part (no scale present)
         R = T(1:3, 1:3);
@@ -74,12 +85,11 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     end
     
     % Get translations
-    translations = zeros(3, num_quadpoints_link);
-    for i = 1:num_quadpoints_link
+    translations = zeros(3, num_sig);
+    for i = 1:num_sig
         % translation
-        translations(:,i) = position(:,i) - undeflected_backbone(:,i);
+        translations(:,i) = pos_xyz(:,i) - undeflected_backbone(:,i);
     end
-
 
     % Plot the undeflected backbone
     h_undeflected = plot3(undeflected_backbone(1,:), undeflected_backbone(2,:), undeflected_backbone(3,:), 'k--', 'LineWidth', 2);
@@ -90,8 +100,40 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     quiver3(0,0,0,0,0,1,0.02,'b-','MaxHeadSize',1.0,'LineWidth', 2)
     
     % Plot deflected backbone
-    plot3(position(1,:), position(2,:), position(3,:), 'b.-', 'LineWidth', 2, 'MarkerSize', 8);
+    plot3(pos_xyz(1,:), pos_xyz(2,:), pos_xyz(3,:), 'b.-', 'LineWidth', 2, 'MarkerSize', 8);
 
+    % Plot disks at each significant point
+    if plot_disks
+        theta = linspace(0, 2*pi, 50);
+        r = 0.01;
+        disk_local = [zeros(size(theta)); r*cos(theta); r*sin(theta); ones(size(theta))];
+        
+        link_skip = 2;  % Plot every 2nd link (1 = every link, 2 = every other, 3 = every 3rd, etc.)
+        points_per_link = num_sig / S.N;
+        for i = link_skip:link_skip:S.N
+            idx = i * points_per_link;
+            T = transform_matrices((idx-1)*4+1:idx*4, :);
+            disk_tf = T * disk_local;
+            fill3(disk_tf(1,:), disk_tf(2,:), disk_tf(3,:), [0.8 0.8 0.8], 'FaceAlpha', 0.5);
+            plot3(disk_tf(1,:), disk_tf(2,:), disk_tf(3,:), 'k', 'LineWidth', 1);
+        end
+    end
+
+    % Plot FOS text labels for links with FOS < 1
+    if vonmises_fos_overlay && exist('fos_values', 'var')
+        points_per_link_fos = num_sig / S.N;
+        for i = 1:S.N
+            if fos_values(i) < 1
+                mid_idx = round((i - 0.5) * points_per_link_fos);
+                mid_idx = max(1, min(mid_idx, num_sig));
+                fos_color = S.CVRods{i}(end).Link.color;
+                text(pos_xyz(1, mid_idx), pos_xyz(2, mid_idx) + 0.006, pos_xyz(3, mid_idx), ...
+                    sprintf('%.2f', fos_values(i)), ...
+                    'FontWeight', 'bold', 'Color', fos_color, 'FontSize', 10, ...
+                    'HorizontalAlignment', 'center');
+            end
+        end
+    end
     
     % Plot deflected tendons
     if plot_tendons
@@ -107,13 +149,13 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     end
     
     % Get backbone positions of the forces
-    force_positions = position(:,force_idxs);
+    force_positions = pos_xyz(:,force_idxs);
 
     % If any element in force_vectors is non-zero
     if any(force_vectors(:) ~= 0)
         % --- Plot the tips of force vectors ---
         % Calculate tip positions (starting from points on x-axis)
-        force_scaler = 0.5;  % Scale factor for visualization
+        force_scaler = 0.05/max(vecnorm(force_vectors_rotated)); % Normalize and scale
         tip_x = force_positions(1,:) - force_scaler * force_vectors_rotated(1,:);
         tip_y = force_positions(2,:) - force_scaler * force_vectors_rotated(2,:);
         tip_z = force_positions(3,:) - force_scaler * force_vectors_rotated(3,:);
@@ -216,4 +258,67 @@ function positions = plot_robot(S, q, distal_values, tau_array, force_vectors, f
     if export_plot
         exportgraphics(gcf, 'FixedPlot.pdf', 'ContentType', 'image', 'Resolution', 600);
     end
+end
+
+%% Vonmises FOS overlay
+function [S, fos_values] = vonmises_fos_overlay_func(S, internal_wrenches, yield_strength)
+    fos_values = zeros(S.N, 1);
+    
+    for i = 1:S.N
+        r_major = S.CVRods{i}(end).Link.a{1}(0);
+        r_minor = S.CVRods{i}(end).Link.b{1}(0);
+        Tx = internal_wrenches(i,1);
+        Ty = internal_wrenches(i,2);
+        Tz = internal_wrenches(i,3);
+        [max_vm, fos] = calc_ellipse_vonmises(r_major, r_minor, Tx, Ty, Tz, yield_strength);
+        
+        fos_values(i) = fos;
+        
+        % FOS to color
+        if fos <= 1
+            color = [fos, 0, 0];           % Black → Red
+        elseif fos <= 2
+            t = fos - 1;
+            color = [1, t, 0];             % Red → Yellow
+        elseif fos <= 3
+            t = fos - 2;
+            color = [1 - t, 1, 0];         % Yellow → Green
+        else
+            color = [0, 1, 0];             % Green
+        end
+        
+        S.CVRods{i}(end).Link.color = color;
+        S.CVRods{i}(end).UpdateAll;
+    end
+    
+    S = S.Update();
+end
+
+%% FOS Colorbar
+function add_fos_colorbar()
+    n = 256;
+    cmap = zeros(n, 3);
+    for i = 1:n
+        fos = 3 * (i - 1) / (n - 1);
+        if fos <= 1
+            cmap(i,:) = [fos, 0, 0];       % Black → Red
+        elseif fos <= 2
+            t = fos - 1;
+            cmap(i,:) = [1, t, 0];         % Red → Yellow
+        else
+            t = fos - 2;
+            cmap(i,:) = [1 - t, 1, 0];     % Yellow → Green
+        end
+    end
+    
+    colormap(gca, cmap);
+    clim([0 3]);
+    cb = colorbar('Location', 'eastoutside');
+    cb.Label.String = 'Von Mises Factor of Safety';
+    cb.Label.FontWeight = 'bold';
+    cb.Label.FontSize = 12;
+    cb.FontSize = 11;
+    cb.FontWeight = 'bold';
+    cb.Ticks = [0 1 2 3];
+    cb.TickLabels = {'0', '1', '2', '3+'};
 end

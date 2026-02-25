@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1400 1050" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Arrow markers -->
+    <marker id="arrow-main" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0,0 10,4 0,8" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-loop" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0,0 10,4 0,8" fill="#666"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0,0 10,4 0,8" fill="#16a34a"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0,0 10,4 0,8" fill="#a21caf"/>
+    </marker>
+
+    <!-- Fonts -->
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+      .title-text { font-family: 'Inter', sans-serif; font-weight: 700; }
+      .label-text { font-family: 'Inter', sans-serif; font-weight: 600; }
+      .body-text { font-family: 'Inter', sans-serif; font-weight: 400; }
+      .mono-text { font-family: 'Consolas', 'Monaco', monospace; font-weight: 600; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1400" height="1050" fill="#f8f8f8"/>
+
+  <!-- Change 1: Title -->
+  <text x="700" y="35" text-anchor="middle" class="title-text" font-size="24" fill="#1a1a1a">Force Sensing Schematic</text>
+
+  <!-- Legend -->
+  <rect x="20" y="55" width="48" height="5" rx="2" fill="#2563eb"/>
+  <text x="78" y="62" class="body-text" font-size="13" fill="#555">Main flow (start → finish)</text>
+  <line x1="250" y1="57.5" x2="298" y2="57.5" stroke="#666" stroke-width="3" stroke-dasharray="8,5"/>
+  <text x="308" y="62" class="body-text" font-size="13" fill="#555">Optimization loop (iterative)</text>
+
+  <!-- Phase labels -->
+  <text x="100" y="95" class="label-text" font-size="12" fill="#888" letter-spacing="1.5">INPUT</text>
+  <text x="450" y="95" class="label-text" font-size="12" fill="#888" letter-spacing="1.5">OPTIMIZATION ENGINE</text>
+  <text x="1050" y="95" class="label-text" font-size="12" fill="#888" letter-spacing="1.5">OUTPUT</text>
+
+  <!-- ===== MAIN FLOW BOXES ===== -->
+
+  <!-- INPUT -->
+  <g transform="translate(20, 110)">
+    <rect x="0" y="0" width="280" height="200" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+    <!-- Blue header -->
+    <rect x="0" y="0" width="280" height="40" rx="8" fill="#2563eb"/>
+    <rect x="0" y="32" width="280" height="8" fill="#2563eb"/>
+    <circle cx="24" cy="20" r="12" fill="white"/>
+    <text x="24" y="25" text-anchor="middle" class="title-text" font-size="14" fill="#2563eb">1</text>
+    <text x="46" y="26" class="title-text" font-size="15" fill="white">INPUT</text>
+
+    <!-- 1.1 Measured Wrench (Change 9: consistent Tx,Ty,Tz,Fx,Fy,Fz) -->
+    <text x="140" y="62" text-anchor="middle" class="label-text" font-size="13" fill="#333">Measured Proximal Wrench</text>
+    <rect x="12" y="70" width="256" height="24" rx="4" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+    <text x="140" y="87" text-anchor="middle" class="mono-text" font-size="12" fill="#1e40af">Wₘ = [Tx, Ty, Tz, Fx, Fy, Fz]</text>
+    <text x="18" y="110" class="body-text" font-size="12" fill="#555">• ATI Mini40 6-axis F/T sensor</text>
+
+    <!-- 1.2 Tendon Tensions -->
+    <text x="140" y="133" text-anchor="middle" class="label-text" font-size="13" fill="#333">Measured Tendon Tensions</text>
+    <rect x="12" y="141" width="256" height="24" rx="4" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+    <text x="140" y="158" text-anchor="middle" class="mono-text" font-size="12" fill="#1e40af">τ = [τ₁, τ₂, τ₃]</text>
+    <text x="18" y="181" class="body-text" font-size="12" fill="#555">• Load cell measurements</text>
+  </g>
+
+  <!-- Arrow: Input → Optimizer -->
+  <path d="M 300,220 L 370,220" stroke="#2563eb" stroke-width="3" fill="none" marker-end="url(#arrow-main)"/>
+  <rect x="307" y="197" width="50" height="18" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+  <text x="332" y="210" text-anchor="middle" class="mono-text" font-size="12" fill="#1e40af">Wₘ, τ</text>
+
+  <!-- OPTIMIZER -->
+  <g transform="translate(380, 110)">
+    <rect x="0" y="0" width="450" height="330" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+    <!-- Blue header -->
+    <rect x="0" y="0" width="450" height="40" rx="8" fill="#2563eb"/>
+    <rect x="0" y="32" width="450" height="8" fill="#2563eb"/>
+    <circle cx="24" cy="20" r="12" fill="white"/>
+    <text x="24" y="25" text-anchor="middle" class="title-text" font-size="14" fill="#2563eb">2</text>
+    <text x="46" y="26" class="title-text" font-size="15" fill="white">OPTIMIZATION</text>
+
+    <!-- Goal box -->
+    <rect x="12" y="48" width="426" height="24" rx="4" fill="#1e40af"/>
+    <text x="225" y="65" text-anchor="middle" class="label-text" font-size="12" fill="white">Goal: Minimize wrench residual ‖r‖² subject to bounded design variables</text>
+
+    <!-- Change 2: "Formulation" subheading (same style as Stage 1 / Stage 2) -->
+    <text x="225" y="90" text-anchor="middle" class="label-text" font-size="13" fill="#1e40af">Formulation</text>
+
+    <!-- Change 10: min with x as subscript below -->
+    <rect x="12" y="98" width="426" height="28" rx="4" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+    <text x="225" y="117" text-anchor="middle" class="mono-text" font-size="13" fill="#1e40af">min<tspan font-size="9" baseline-shift="sub">x</tspan>  ‖r(x)‖²    s.t.   lb ≤ x ≤ ub</text>
+
+    <!-- Change 3: "Design Variables" subheading removed; content stays -->
+    <!-- Change 6: Bounds s ∈ [0.02, L] -->
+    <text x="18" y="146" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Design variables:</tspan> x = [F₁, s₁, θ₁, F₂, s₂, θ₂] ∈ ℝ⁶</text>
+    <text x="18" y="162" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">F:</tspan> force magnitude (N) | <tspan class="label-text">s:</tspan> arc length (m) | <tspan class="label-text">θ:</tspan> angle (rad)</text>
+    <text x="18" y="178" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Bounds:</tspan> F ∈ [0.1, 1], s ∈ [0.02, L], θ ∈ [0, 2π]</text>
+
+    <!-- Stage 1 (Changes 4, 5, 7) -->
+    <text x="225" y="202" text-anchor="middle" class="label-text" font-size="13" fill="#1e40af">Stage 1: Global Search (Exploration)</text>
+    <!-- Change 5: N = 400 -->
+    <text x="18" y="220" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">LHS Sampling:</tspan> N = 400 samples across bounded design space</text>
+    <!-- Change 4: "residual vector" green + bold -->
+    <text x="18" y="236" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Residual Screening:</tspan> Evaluate <tspan class="label-text" fill="#16a34a">Residual Vector</tspan> for all samples</text>
+    <!-- Change 7: replaced bullet -->
+    <text x="18" y="252" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Seed Selection:</tspan> Use the K = 5 lowest-resnorm samples as seeds for Stage 2</text>
+
+    <!-- Stage 2 -->
+    <text x="225" y="276" text-anchor="middle" class="label-text" font-size="13" fill="#1e40af">Stage 2: Local Refinement (Nonlinear Least Squares)</text>
+    <text x="18" y="294" class="body-text" font-size="12" fill="#555">• <tspan class="label-text" fill="#1e40af">FOR k = 1 : K</tspan> — Run lsqnonlin (trust-region-reflective) from each seed</text>
+    <text x="18" y="310" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Stop:</tspan> OptimalityTolerance = 1e-10, MaxIterations = 50</text>
+    <text x="18" y="326" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Selection:</tspan> x* = argmin ‖r(xₖ)‖² over all K solutions</text>
+  </g>
+
+  <!-- Arrow: Optimizer → Output -->
+  <path d="M 830,220 L 960,220" stroke="#2563eb" stroke-width="3" fill="none" marker-end="url(#arrow-main)"/>
+  <rect x="865" y="197" width="70" height="18" rx="3" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+  <text x="900" y="210" text-anchor="middle" class="label-text" font-size="12" fill="#1e40af">converged</text>
+
+  <!-- OUTPUT -->
+  <g transform="translate(970, 140)">
+    <rect x="0" y="0" width="265" height="160" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+    <!-- Blue header -->
+    <rect x="0" y="0" width="265" height="40" rx="8" fill="#2563eb"/>
+    <rect x="0" y="32" width="265" height="8" fill="#2563eb"/>
+    <circle cx="24" cy="20" r="12" fill="white"/>
+    <text x="24" y="25" text-anchor="middle" class="title-text" font-size="14" fill="#2563eb">3</text>
+    <text x="46" y="26" class="title-text" font-size="15" fill="white">OUTPUT</text>
+
+    <text x="132" y="68" text-anchor="middle" class="label-text" font-size="14" fill="#333">Estimated External Forces</text>
+    <rect x="12" y="80" width="241" height="32" rx="4" fill="#dbeafe" stroke="#2563eb" stroke-width="1"/>
+    <text x="132" y="102" text-anchor="middle" class="mono-text" font-size="14" fill="#1e40af">x* = [F₁, s₁, θ₁, F₂, s₂, θ₂]</text>
+    <text x="132" y="132" text-anchor="middle" class="body-text" font-size="12" fill="#555">Optimal force parameters minimizing</text>
+    <text x="132" y="148" text-anchor="middle" class="body-text" font-size="12" fill="#555">wrench residual ‖r(x*)‖²</text>
+  </g>
+
+  <!-- ===== OPTIMIZATION LOOP ===== -->
+
+  <!-- Loop arrow: down from optimizer -->
+  <path d="M 605,440 L 605,475" stroke="#666" stroke-width="2" stroke-dasharray="8,5" fill="none" marker-end="url(#arrow-loop)"/>
+  <rect x="615" y="445" width="75" height="18" rx="3" fill="#e5e5e5" stroke="#666" stroke-width="1"/>
+  <text x="652" y="458" text-anchor="middle" class="label-text" font-size="12" fill="#555">evaluate x</text>
+
+  <!-- Change 11: "Optimization Loop" instead of "Evaluation Modules" -->
+  <rect x="20" y="490" width="1215" height="530" rx="10" fill="#f0f0f0" stroke="#ddd" stroke-width="1.5"/>
+  <text x="45" y="518" class="label-text" font-size="12" fill="#777" letter-spacing="1">OPTIMIZATION LOOP (called each iteration)</text>
+
+  <!-- ===== RESIDUAL VECTOR MODULE (Green accent) ===== -->
+  <g transform="translate(35, 535)">
+    <rect x="0" y="0" width="570" height="430" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+    <!-- Green header -->
+    <rect x="0" y="0" width="570" height="40" rx="8" fill="#16a34a"/>
+    <rect x="0" y="32" width="570" height="8" fill="#16a34a"/>
+    <circle cx="24" cy="20" r="12" fill="white"/>
+    <text x="24" y="25" text-anchor="middle" class="title-text" font-size="14" fill="#16a34a">R</text>
+    <text x="46" y="26" class="title-text" font-size="15" fill="white">RESIDUAL VECTOR</text>
+
+    <!-- Function signature -->
+    <rect x="240" y="8" width="318" height="24" rx="4" fill="#dcfce7" stroke="#22c55e" stroke-width="1"/>
+    <text x="399" y="25" text-anchor="middle" class="mono-text" font-size="12" fill="#166534">r(x) = residual_vector(x, Wₘ, τ)</text>
+
+    <!-- R.1: Forward Model Evaluation (Change 9: consistent formatting) -->
+    <rect x="12" y="52" width="36" height="24" rx="5" fill="#16a34a"/>
+    <text x="30" y="69" text-anchor="middle" class="label-text" font-size="12" fill="white">R.1</text>
+    <text x="58" y="69" class="label-text" font-size="13" fill="#333">Forward Model Evaluation:</text>
+    <rect x="250" y="55" width="308" height="24" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+    <text x="404" y="72" text-anchor="middle" class="mono-text" font-size="12" fill="#166534">Wₛᵢₘ = forward_model([x, τ])</text>
+    <rect x="250" y="85" width="308" height="24" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+    <text x="404" y="102" text-anchor="middle" class="mono-text" font-size="12" fill="#166534">Wₛᵢₘ = [Tx, Ty, Tz, Fx, Fy, Fz] ∈ ℝ⁶</text>
+    <text x="68" y="128" class="body-text" font-size="12" fill="#555">• Uses current force estimate x to retrieve a simulated proximal wrench Wₛᵢₘ</text>
+
+    <!-- R.2: Weight Vector (Change 9: consistent Tx,Ty,Tz,Fx,Fy,Fz) -->
+    <rect x="12" y="148" width="36" height="24" rx="5" fill="#16a34a"/>
+    <text x="30" y="165" text-anchor="middle" class="label-text" font-size="12" fill="white">R.2</text>
+    <text x="58" y="165" class="label-text" font-size="13" fill="#333">Weight Vector (Sensor Range Normalization):</text>
+    <rect x="12" y="178" width="546" height="24" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+    <text x="285" y="195" text-anchor="middle" class="mono-text" font-size="12" fill="#166534">w = [1/R₁, 1/R₂, ..., 1/R₆]  where Rᵢ = full-scale range of channel i</text>
+    <text x="68" y="220" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">R:</tspan> [1 Nm, 1 Nm, 1 Nm, 60 N, 20 N, 20 N] (sensor full-scale ranges: Tx, Ty, Tz, Fx, Fy, Fz)</text>
+    <text x="68" y="236" class="body-text" font-size="12" fill="#555">• Normalizes residuals to comparable magnitudes</text>
+
+    <!-- R.3: Weighted Residual Computation -->
+    <rect x="12" y="256" width="36" height="24" rx="5" fill="#16a34a"/>
+    <text x="30" y="273" text-anchor="middle" class="label-text" font-size="12" fill="white">R.3</text>
+    <text x="58" y="273" class="label-text" font-size="13" fill="#333">Weighted Residual Computation:</text>
+    <rect x="280" y="259" width="220" height="24" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+    <text x="390" y="276" text-anchor="middle" class="mono-text" font-size="12" fill="#166534">r = w ⊙ (Wₛᵢₘ − Wₘ)</text>
+    <!-- Change 8: expanded equation first, then bullet below it -->
+    <rect x="68" y="290" width="490" height="24" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+    <text x="313" y="307" text-anchor="middle" class="mono-text" font-size="12" fill="#166534">= [w₁(Wₛᵢₘ,₁ − Wₘ,₁), w₂(Wₛᵢₘ,₂ − Wₘ,₂), ..., w₆(Wₛᵢₘ,₆ − Wₘ,₆)]</text>
+    <text x="68" y="334" class="body-text" font-size="12" fill="#555">• Element-wise weighted difference</text>
+    <text x="68" y="352" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Optimizer minimizes:</tspan> ‖r‖² = Σᵢ rᵢ²  (sum of squared weighted residuals)</text>
+
+    <!-- Return -->
+    <rect x="12" y="372" width="546" height="24" rx="5" fill="#16a34a"/>
+    <text x="285" y="389" text-anchor="middle" class="title-text" font-size="13" fill="white">Return: r ∈ ℝ⁶ (weighted residual vector)</text>
+  </g>
+
+  <!-- ===== FORWARD MODEL MODULE (Purple/Magenta accent) ===== -->
+  <!-- Change 9: consistent Tx,Ty,Tz,Fx,Fy,Fz in return bar -->
+  <g transform="translate(625, 535)">
+    <rect x="0" y="0" width="580" height="340" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+    <!-- Purple header -->
+    <rect x="0" y="0" width="580" height="40" rx="8" fill="#a21caf"/>
+    <rect x="0" y="32" width="580" height="8" fill="#a21caf"/>
+    <circle cx="24" cy="20" r="12" fill="white"/>
+    <text x="24" y="25" text-anchor="middle" class="title-text" font-size="14" fill="#a21caf">F</text>
+    <text x="46" y="26" class="title-text" font-size="15" fill="white">FORWARD MODEL (SOROSIM)</text>
+
+    <!-- Function signature -->
+    <rect x="295" y="8" width="273" height="24" rx="4" fill="#f5d0fe" stroke="#e879f9" stroke-width="1"/>
+    <text x="431" y="25" text-anchor="middle" class="mono-text" font-size="12" fill="#86198f">Wₛᵢₘ = forward_model(x, τ) ∈ ℝ⁶</text>
+
+    <!-- F.1: Assumptions -->
+    <rect x="12" y="52" width="36" height="24" rx="5" fill="#a21caf"/>
+    <text x="30" y="69" text-anchor="middle" class="label-text" font-size="12" fill="white">F.1</text>
+    <text x="58" y="69" class="label-text" font-size="13" fill="#333">Assumptions</text>
+    <rect x="58" y="80" width="510" height="72" rx="4" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="68" y="98" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Transverse Forces:</tspan> Applied perpendicular to local axis</text>
+    <text x="68" y="114" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Concentric Forces:</tspan> Pass through geometric center</text>
+    <text x="68" y="130" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Follower Forces:</tspan> Defined relative to local frame</text>
+    <text x="68" y="146" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">Elastic Deformation:</tspan> Purely elastic with full recovery</text>
+
+    <!-- F.2: Apply Point Forces -->
+    <rect x="12" y="164" width="36" height="24" rx="5" fill="#a21caf"/>
+    <text x="30" y="181" text-anchor="middle" class="label-text" font-size="12" fill="white">F.2</text>
+    <text x="58" y="181" class="label-text" font-size="13" fill="#333">Apply Point Forces to Linkage:</text>
+    <rect x="280" y="167" width="225" height="24" rx="4" fill="#f5d0fe" stroke="#a21caf" stroke-width="1"/>
+    <text x="392" y="184" text-anchor="middle" class="mono-text" font-size="12" fill="#86198f">x = [F₁, s₁, θ₁, F₂, s₂, θ₂]</text>
+    <text x="68" y="206" class="body-text" font-size="12" fill="#555">• <tspan class="label-text">F:</tspan> Force magnitude (N) | <tspan class="label-text">s:</tspan> Arc length position (m) | <tspan class="label-text">θ:</tspan> Angle (rad)</text>
+
+    <!-- F.3: Set Tendon Tensions -->
+    <rect x="12" y="222" width="36" height="24" rx="5" fill="#a21caf"/>
+    <text x="30" y="239" text-anchor="middle" class="label-text" font-size="12" fill="white">F.3</text>
+    <text x="58" y="239" class="label-text" font-size="13" fill="#333">Set Target Tendon Tensions:</text>
+    <rect x="280" y="225" width="135" height="24" rx="4" fill="#f5d0fe" stroke="#a21caf" stroke-width="1"/>
+    <text x="347" y="242" text-anchor="middle" class="mono-text" font-size="12" fill="#86198f">τ = [τ₁, τ₂, τ₃]</text>
+
+    <!-- F.4: Statics Simulation -->
+    <rect x="12" y="258" width="36" height="24" rx="5" fill="#a21caf"/>
+    <text x="30" y="275" text-anchor="middle" class="label-text" font-size="12" fill="white">F.4</text>
+    <text x="58" y="275" class="label-text" font-size="13" fill="#333">Statics Simulation → Proximal Wrench</text>
+    <text x="68" y="296" class="body-text" font-size="12" fill="#555">• Computes wrench required for quasi-static equilibrium</text>
+    <text x="68" y="312" class="body-text" font-size="12" fill="#555">• Under applied load and tendon tensions</text>
+
+    <!-- Return -->
+    <rect x="12" y="326" width="556" height="24" rx="5" fill="#a21caf"/>
+    <text x="290" y="343" text-anchor="middle" class="title-text" font-size="13" fill="white">Return: Wₛᵢₘ = [Tx, Ty, Tz, Fx, Fy, Fz]</text>
+  </g>
+
+  <!-- ===== ARROWS BETWEEN MODULES ===== -->
+
+  <!-- Residual Vector calls Forward Model (Green arrow going right) -->
+  <path d="M 605,685 L 623,685" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#arrow-green)"/>
+  <rect x="540" y="658" width="60" height="20" rx="3" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+  <text x="570" y="673" text-anchor="middle" class="mono-text" font-size="12" fill="#166534">x, τ</text>
+
+  <!-- Forward Model returns Wₛᵢₘ to Residual Vector (Purple arrow going left) -->
+  <path d="M 625,720 L 607,720" stroke="#a21caf" stroke-width="2" fill="none" marker-end="url(#arrow-purple)"/>
+  <rect x="540" y="728" width="65" height="20" rx="3" fill="#f5d0fe" stroke="#a21caf" stroke-width="1"/>
+  <text x="572" y="743" text-anchor="middle" class="mono-text" font-size="12" fill="#86198f">Wₛᵢₘ</text>
+
+  <!-- ===== RETURN ARROW TO OPTIMIZER ===== -->
+
+  <!-- Residual Vector returns r(x) (Green arrow going up) -->
+  <path d="M 320,535 L 320,505 L 540,505 L 540,475" stroke="#16a34a" stroke-width="2" stroke-dasharray="8,5" fill="none" marker-end="url(#arrow-green)"/>
+  <rect x="402" y="492" width="55" height="20" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
+  <text x="429" y="507" text-anchor="middle" class="mono-text" font-size="12" fill="#166534">r(x)</text>
+
+</svg>

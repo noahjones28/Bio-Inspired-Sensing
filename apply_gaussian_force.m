@@ -1,4 +1,4 @@
-function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
+function S  = apply_gaussian_force(S, distal_values)
     %% ABOUT
     % Applies a user-specified point force as a narrow gaussian
     % distributed force to SoRoSim likage S
@@ -13,28 +13,20 @@ function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
     % force_idxs: force vector indecies for quick lookup
 
     %% SETUP
-    num_major_link = 2; % Main Link where force is to be applied
     plot_gaussain_debug = false; % true for debug visualization of gaussian distribution
     num_applied_forces = size(distal_values, 1); % number of user-specified point forces 
-    num_divs = S.VLinks(num_major_link).npie-1; % number of divisions in main link
-    L_div = S.VLinks(num_major_link).L/num_divs; % length of division
-    quadpoints = S.CVRods{num_major_link}(2).Xs; % get quadpoints of just first div (each div has same quadpoints) 
-    quadpoints_per_div = length(quadpoints);
-    quadlengths = [];
-    for i=1:num_divs  
-        quadlengths_new = quadpoints'*L_div+L_div*(i-1);
-        % Modify first and last value by tiny bit to avoid duplictae points
-        quadlengths_new(1) = quadlengths_new(1)+1e-5;
-        quadlengths_new(end) = quadlengths_new(end)-1e-5;
-        quadlengths = [quadlengths, quadlengths_new];
-    end
+    link_length = S.VLinks(end).L; % Length of each link
+    num_links = S.N; % Number of links
+    % List of normalized quadpoints on a link
+    % We assume all links have the same quadpoints
+    quadpoints_local = S.CVRods{end}(end).Xs';
+    quadpoint_globalx = get_quadpoint_globalx(link_length, num_links, quadpoints_local);
   
     %% COMPUTE FORCE VECTORS
     % Initialize storage cells
     force_vectors = {};
-    force_divisions = {};
+    force_links = {};
     force_locations = {};
-    force_idxs = {};
     % for each user-specified point forces 
     for i = 1:num_applied_forces
         F = distal_values(i, 1);
@@ -45,23 +37,28 @@ function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
         % Convert point load into a discretized Gaussian distribution in x-y plane
         % point force is represented by a set of smaller forces whose magnitudes sum
         % to the original load and follow the prescribed Gaussian profile.
-        [x_loads, F_loads] = distributePointLoad(F, s, quadlengths, sigma, plot_gaussain_debug);
+        [x_loads, F_loads] = distributePointLoad(F, s, quadpoint_globalx, sigma, plot_gaussain_debug);
         num_dist_points = length(F_loads);
         % Convert each force to 3D cartesian vector in x-y-z using angles
         [x,y,z] = rollPitchToCartesian(roll*ones(1,num_dist_points), pitch*ones(1,num_dist_points), F_loads);
-        % Get target division and idx of each vector 
-        [target_divisions, idxs] = get_target_divisions(quadlengths, quadpoints_per_div, x_loads);
+        F_global = [x;y;z];
+        % Get target links
+        link_idxs = get_link_idxs(x_loads, link_length, num_links);
+        % Get local normalized locations
+        locations = get_normalized_locations(x_loads, link_idxs, link_length, num_links, quadpoints_local);
+        % Map the global force vector into the local frame of link i
+        F_local = global_to_local(S.g_ini, link_idxs, F_global);
+
         % Fill storage cells with result
-        force_vectors{end+1} = [x; y; z];
-        force_divisions{end+1} = target_divisions;
-        force_locations{end+1} = get_normalized_force_location(quadpoints, quadpoints_per_div, target_divisions, idxs);
-        force_idxs{end+1} = idxs;
+        force_vectors{end+1} = F_local;
+        force_links{end+1} = link_idxs;
+        force_locations{end+1} = locations;
     end
     % Convert from cell to matrix
     force_vectors = cell2mat(force_vectors);
-    force_divisions = cell2mat(force_divisions);
+    force_links = cell2mat(force_links);
     force_locations = cell2mat(force_locations);
-    force_idxs = cell2mat(force_idxs);
+    force_divisions = 1;
     
     
     %% APPLY FORCES TO ROBOT
@@ -71,7 +68,7 @@ function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
     for i = 1:num_force_vectors
         S.Fp_vec{i} = @(t)[0, 0, 0, force_vectors(1,i),...
             force_vectors(2,i), force_vectors(3,i)]';
-        S.Fp_loc{i} = [num_major_link, force_divisions(i), force_locations(i)];
+        S.Fp_loc{i} = [force_links(i), force_divisions, force_locations(i)];
     end
     S.np = num_force_vectors; % Update number of forces
     S.LocalWrench = ones(1, num_force_vectors); % Update if forces are local or global
@@ -79,25 +76,39 @@ function [S,force_vectors, force_idxs]  = apply_gaussian_force(S, distal_values)
     
 end
 
+%% get_quadpoint_globalx
+function quadpoint_globalx = get_quadpoint_globalx(link_length, num_links, quadpoints_local)        
+    beam_offsets = (0 : num_links-1) * link_length;
+    global_matrix = (quadpoints_local(:) * link_length) + beam_offsets;
+    quadpoint_globalx = global_matrix(:)';
+    quadpoint_globalx = unique(quadpoint_globalx);
+end
 
-%% get_target_divisions HELPER FUNCTION
-function [target_divisions, idxs] = get_target_divisions(quadlengths,quadpoints_per_div,s) 
-    target_divisions = zeros(1,length(s));
-    idxs = zeros(1,length(s));
-    for i=1:length(s)
-        [~, idxs(i)] = min(abs(quadlengths - s(i)));
-        % tiny 𝜀 (1e-5) pushes exact multiples just below the boundary
-        target_divisions(i) = floor((idxs(i)-1e-5)/quadpoints_per_div) + 1;
-    end
+%% get_target_links
+function link_idxs = get_link_idxs(x, link_length, num_links)
+    link_idxs = floor(x / link_length) + 1;
+    % Edge case handling: 
+    % If x is exactly 0.2, the formula gives 21. We clamp it to 20.
+    link_idxs = min(link_idxs, num_links);
+    % Clamp the lower bound to 1
+    % This handles cases where s < 0 (e.g., -1e-10) which would cause index 0
+    link_idxs = max(link_idxs, 1);
 end
 
 
-%% get_normalized_force_location HELPER FUNCTION
-function normalized_force_locations = get_normalized_force_location(quadpoints,quadpoints_per_div,target_divisions, idx)
-    normalized_force_locations = zeros(1,length(idx));
-    for i=1:length(idx)
-        normalized_force_locations(i) = quadpoints(idx(i)-(target_divisions(i)-1)*quadpoints_per_div);
-    end
+%% get_normalized_locations
+function locations = get_normalized_locations(x, link_idxs, link_length, num_links, quadpoints_local) 
+    % Calculate local percentage (0.0 to 1.0)
+    % Formula: (GlobalPos / Length) - (BeamsBefore)
+    percent = (x ./ link_length) - (link_idxs - 1);
+    % Optional: Clamp percentage to [0, 1] to handle float noise 
+    percent = max(0, min(percent, 1));
+    % Calculate absolute difference between quadpoints and percent
+    diffs = abs(quadpoints_local' - percent);
+    % Find the index of the minimum difference
+    [~, idx] = min(diffs);
+    %
+    locations = quadpoints_local(idx);
 end
 
 
@@ -191,3 +202,4 @@ function [x_loads, F_loads] = distributePointLoad(F_total, x0, x_available, sigm
         hold off;
     end
 end
+

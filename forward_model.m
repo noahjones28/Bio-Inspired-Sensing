@@ -1,6 +1,6 @@
-function [proximal_wrench] = forward_model(distal_values, tau_array, doPlot, fig_handle, S1)
+function [proximal_wrench, internal_wrenches] = forward_model(distal_values, tau_array, doPlot, fig_handle, S)
     %% ABOUT
-    % Input: External applied forces x = [F1,s1,theta1;...FN,sN,thetaN] and
+    % Input: External applied forces x = [F1,S,theta1;...FN,sN,thetaN] and
     % tendon tensions τ = [τ1, τ2, τ3]
 
     % Output: Proximal wrench Wm = [Tx,Ty,Tz,Fx,Fy,Fz]
@@ -11,11 +11,10 @@ function [proximal_wrench] = forward_model(distal_values, tau_array, doPlot, fig
     sigma_default = 0.005; % Gaussian force distribution spread (stdev)
     tau_array_default = [0,0,0]; % Default tendon tensions
     N = size(distal_values,1); % Number of applied forces
-    sensor_offset = 90e-3; % Adjust the offset between the 6axis f/t sensor and the beam base
    
     % Set default values
-    if nargin < 5   % if SoRoSim Linkage S1 was not provided
-        load("my_robot.mat");   % Default load my_robot
+    if nargin < 5   % if SoRoSim Linkage S was not provided
+        load('my_robot.mat','S');   % Default load my_robot
     end
     if nargin < 4   % if fig_handle was not provided
         fig_handle = false;      % Set default value
@@ -33,14 +32,9 @@ function [proximal_wrench] = forward_model(distal_values, tau_array, doPlot, fig
         distal_values = [distal_values, repmat(sigma_default, N, 1)]; % Set default value
     end
 
-    % Set initial guess depending on linkage configuration
-    if S1.VLinks(2).npie-1 == 5 % if using 5 divisions beam
-        x0 = zeros(66,1); % inital guesss
-    elseif S1.VLinks(2).npie-1 == 20 % if using 20 divisions beam 
-        x0 = zeros(246,1); % inital guesss
-    else % if using single division beam 
-        x0 = zeros(18,1);
-    end
+    % Set initial guess x0 depending on total number of degrees of freedom
+    ndof = S.ndof;
+    x0 = zeros(ndof,1);
 
     % Sign convention:
     %   tau_array < 0 → tendon pulling (tension)
@@ -54,23 +48,19 @@ function [proximal_wrench] = forward_model(distal_values, tau_array, doPlot, fig
 
     %% APPLY FORCE TO LINKAGE
     % Apply external load modeled as Gaussian Curve
-    [S1, force_vectors, force_idxs] = apply_gaussian_force(S1, distal_values);
+    S = apply_gaussian_force(S, distal_values);
     
 
     %% STATICS SIMULATION
-    % Initial tendon tenions and joint position values 
-    action = [tau_array';0;0;0;0;0;0];
+    % Initial joint position values 
+    initial_joint = [0;0;0;0;0;0];
+    action = [tau_array';initial_joint]; % append tendon actuation
 
     % Statics simulation
-    [q,u,lambda] = S1.statics(x0,action,'plotResult',false,'Display','off');
-    
-    % Plot deflected robot
-    if doPlot
-        plot_robot(S1, q, distal_values, tau_array, force_vectors, force_idxs, doPlot, fig_handle);
-    end
-   
+    [q,u,lambda] = S.statics(x0,action,'plotResult',false,'Display','off');
+  
 
-    %% POST PROCESSING
+    %% PROXIMAL WRENCH
     % Sign convention:
     %   u < 0 → force on joint (reaction force)
     %   u > 0 → force on robot
@@ -81,16 +71,24 @@ function [proximal_wrench] = forward_model(distal_values, tau_array, doPlot, fig
     Fy_sensor = -u(5);
     Fz_sensor = -u(6);
     
-    % Apply offset correction if using sensor offset (remove geometric coupling)
-    if sensor_offset > 0
-        Ty_base = Ty_sensor+sensor_offset*Fz_sensor; % +offset
-        Tz_base = Tz_sensor-sensor_offset*Fy_sensor; % -offset
-    else
-       Ty_base = Ty_sensor;
-       Tz_base = Tz_sensor;
-    end
-    
     % Output
-    proximal_wrench = [Tx_sensor,Ty_base,Tz_base,Fx_sensor,Fy_sensor,Fz_sensor];
-
+    proximal_wrench = [Tx_sensor,Ty_sensor,Tz_sensor,Fx_sensor,Fy_sensor,Fz_sensor];
+    
+    
+    %% INTERNAL STRAINS/WRENCHES
+    strains = S.ScrewStrain(q);
+    strains = reshape(strains, 6, S.nsig);
+    nsig_per_link = S.nsig / S.N;
+    internal_strains = strains(:, 2:nsig_per_link:end);
+    internal_wrenches = zeros(6, S.N);  % Preallocate  
+    for i = 1:S.N
+        Es = S.CVRods{i}(end).Es(1:6, 1:end);
+        internal_wrenches(:, i) = Es * internal_strains(:, i);
+    end
+    internal_wrenches = internal_wrenches(1:3,:)';
+    
+    %% PLOTTING
+    if doPlot
+        plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, fig_handle);
+    end
 end

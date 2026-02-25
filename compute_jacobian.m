@@ -1,28 +1,33 @@
-function Jw = compute_jacobian(p, S1)
+function [Jw, param_scales] = compute_jacobian(p, tau_array, S)
     %% ABOUT
-    % Computes normalized Jacobian of get_proximal_values using central difference
+    % Computes the whitened (noise-normalized) Jacobian using central difference
     
     % Input:
-    % p: Nx6 array [F1, s1, theta1, F2, s2, theta2; ...]
-    % S1: Linkage
+    % p: Nx6 array [F1, S, theta1, F2, s2, theta2; ...]
+    % tau: 1x3 array [tau1, tau2, tau3]
+    % S: Linkage
     
     % Output:
-    % Jw: the whitened (noise-normalized), nondimensionalized sensitivity matrix (jacobian) 
+    % Jw: the whitened (noise-normalized), nondimensionalized sensitivity matrix (jacobian)
+    % param_scales: helpful for calculating covariance matrix
     
     
     %% SETUP
     % Set default values
-    if nargin < 2
-        load("my_robot.mat");
+    if nargin < 3
+        load("my_robot.mat",'S');
     end
+    if nargin < 2
+        tau_array = zeros(1,3);
+    end
+
     % Parameters
     eps = 1e-3; % Base step size
-    % Per-channel standard deviation of the error between hardware measurements and model predictions.
-    % This error captures model mismatch, hysteresis, non-elastic bending, and measurement uncertainty.
-    % Estimated from 40+ hardware experiments.
-    sigma = [0.00173, 0.01598, 0.01215,	0.06838, 0.06938, 0.09147];
-    range_force = 1.0; % Newtons (Max Operating Range)
-    range_pos = 0.2;    % Meters (Max Operating Range)
+    print_output = false; % Print smallest singular value
+    % SENSING RANGES from ATI spec sheet 
+    sigma = [1, 1, 1, 60, 20, 20];
+    range_force = 1.2; % Newtons (Max Operating Range)
+    range_pos = 0.18;    % Meters (Max Operating Range)
     range_theta = 2*pi; % Radians (Max Operating Range)
     wrench_scales = sigma'; % Output Scale: We want 1.0 to represent "1 unit of Noise"
     param_scales = [range_force; range_pos; range_theta; ... % Input Scale: We want 1.0 to represent "Full Scale Input"
@@ -32,7 +37,9 @@ function Jw = compute_jacobian(p, S1)
     steps = eps * param_scales';  % 1x6 scaled steps vector
     % Build all perturbations for all parameter sets at once
     % Each parameter set needs 12 rows (6 plus + 6 minus)
-    all_forces = zeros(N * 12, 9);
+    all_forces = zeros(N * 12, 6);
+    % Append the tau array to end of each row
+    all_forces = [all_forces, repelem(tau_array, 12, 1)];
     
     
     %% JACOBIAN COMPUTATION (CENTRAL FINITE DIFFERENCE) (WHITENED NOISE-NORMALIZED)
@@ -49,7 +56,7 @@ function Jw = compute_jacobian(p, S1)
     end
     
     % Get wrench for each perturbed test force
-    all_W = forward_model_parallel(all_forces, S1);
+    all_W = forward_model_parallel(all_forces, S);
     
     % For each test force build jacobian
     for i = 1:N
@@ -63,7 +70,11 @@ function Jw = compute_jacobian(p, S1)
         % Apply input and output scalings to get noise-whitened, nondimensionalized Jacobian
         Jw{i} = diag(1 ./ wrench_scales) * J_raw * diag(param_scales);
         
-        sv = svd(Jw{i});
-        fprintf('Smallest singular value (%d): %.6e\n', i, sv(end));
+        % optional if print_output
+        if print_output
+            % Get condition number
+            k = cond(Jw{i});
+            fprintf('Condition number (%d): %.6e\n', i, k);
+        end
     end
 end
