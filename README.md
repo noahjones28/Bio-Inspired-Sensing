@@ -11,7 +11,7 @@ Surgical continuum robots often brush against tissue at multiple points simultan
 This project takes a different approach: **encode the missing information directly into the shape of the robot backbone.** Inspired by the evolved geometry of animal whiskers (rats, seals, elephants), we treat the backbone's cross-sectional profile as a design variable and optimize it so that a single proximal force/torque sensor can uniquely recover multiple 3D contact forces along the body.
 
 <p align="center">
-  <img src="Images and Videos/fig_2_1_schematic.png" width="700"/>
+  <img src="Figures/robot_schematic.png" width="700"/>
 </p>
 
 *The robot backbone (200 mm, 20 links) is deflected by two simultaneous point forces, each parameterized by magnitude F, arc-length position s, and angle θ. A single 6-axis F/T sensor at the base measures the resulting wrench.*
@@ -20,22 +20,16 @@ This project takes a different approach: **encode the missing information direct
 
 ## Key Results
 
-Optimized tapered geometries, combined with small active "whisking" perturbations (tendon actuation sweeps), dramatically outperform conventional cylindrical backbones:
+Optimized geometries dramatically outperform conventional cylindrical backbones for multi-force estimation:
 
 <p align="center">
-  <img src="Images and Videos/fig_5_1_boxplot.png" width="620"/>
+  <img src="Figures/Expected Results Plot.png" width="800"/>
 </p>
 
-| Metric | Cylindrical | Tapered | Improvement |
+| Metric | Cylindrical | Optimized | Improvement |
 |---|---|---|---|
 | Mean force error | 0.22 N | 0.04 N | **~5.5×** |
 | Mean position error | 4.97 cm | 0.93 cm | **~5.3×** |
-
-And the more whisks (tendon perturbations) applied, the better it gets:
-
-<p align="center">
-  <img src="Images and Videos/fig_5_2_whisks.png" width="620"/>
-</p>
 
 ---
 
@@ -67,7 +61,7 @@ Each link is parameterized with an elliptical cross-section (semi-axes `a`, `b`,
 ## Hardware
 
 <p align="center">
-  <img src="Images and Videos/fig_4_1_cad.png" width="620"/>
+  <img src="Figures/CAD Schematic.png" width="620"/>
 </p>
 
 The custom test rig applies two independent 3D point forces simultaneously using:
