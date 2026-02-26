@@ -1,143 +1,137 @@
-# 🧠 Bio-Inspired Force Estimation in Tendon-Driven Continuum Robots
+# Bio-Inspired Backbone Geometry for Multi-Point 3D Force Estimation in Continuum Robots
 
-This repository contains the simulation, optimization, and analysis code for my research on **force and contact‐location estimation in concentric-tube / tendon-driven continuum robots (CTR)**. The work is inspired by **biological whisker sensing**, where geometry (taper, curvature, stiffness gradients) plays a critical role in ensuring **injective, noise-robust mappings** between applied distal forces and measured proximal wrenches.
+**Noah Jones · UC San Diego, Morimoto Lab · MS Thesis 2025**
 
-The goal of this project is to design robot geometries that **maximize the uniqueness and robustness** of the forward map
+---
+
+## What is this?
+
+Surgical continuum robots often brush against tissue at multiple points simultaneously. Knowing *where* and *how hard* those contacts are is critical for patient safety — but getting that information is hard. Body-mounted force sensors are bulky, hard to sterilize, and impractical at small scales. Base-mounted sensors are practical, but typically don't provide enough information to recover all the contact variables.
+
+This project takes a different approach: **encode the missing information directly into the shape of the robot backbone.** Inspired by the evolved geometry of animal whiskers (rats, seals, elephants), we treat the backbone's cross-sectional profile as a design variable and optimize it so that a single proximal force/torque sensor can uniquely recover multiple 3D contact forces along the body.
+
+<p align="center">
+  <img src="Images and Videos/fig_2_1_schematic.png" width="700"/>
+</p>
+
+*The robot backbone (200 mm, 20 links) is deflected by two simultaneous point forces, each parameterized by magnitude F, arc-length position s, and angle θ. A single 6-axis F/T sensor at the base measures the resulting wrench.*
+
+---
+
+## Key Results
+
+Optimized tapered geometries, combined with small active "whisking" perturbations (tendon actuation sweeps), dramatically outperform conventional cylindrical backbones:
+
+<p align="center">
+  <img src="Images and Videos/fig_5_1_boxplot.png" width="620"/>
+</p>
+
+| Metric | Cylindrical | Tapered | Improvement |
+|---|---|---|---|
+| Mean force error | 0.22 N | 0.04 N | **~5.5×** |
+| Mean position error | 4.97 cm | 0.93 cm | **~5.3×** |
+
+And the more whisks (tendon perturbations) applied, the better it gets:
+
+<p align="center">
+  <img src="Images and Videos/fig_5_2_whisks.png" width="620"/>
+</p>
+
+---
+
+## How It Works
+
+### Forward Model
+
+Each link is parameterized with an elliptical cross-section (semi-axes `a`, `b`, rotation `φ`). The backbone is simulated using **SoRoSim** (MATLAB, Cosserat rod theory). Applied forces are modeled as narrow Gaussian distributions rather than true point loads — this dramatically improves numerical conditioning in the inverse solver.
+
+<p align="center">
+  <img src="Images and Videos/fig_2_2_gaussian.png" width="580"/>
+</p>
+
+`forward_model(F, τ)` takes applied forces and tendon tensions → returns the 6-DOF proximal wrench `[Tx, Ty, Tz, Fx, Fy, Fz]`.
+
+### Inverse Model
+
+`inverse_model(Wm, τm)` runs a two-stage solver to recover the forces from a measured wrench:
+
+1. **Global search** — Latin Hypercube Sampling generates 400 candidates across the bounded design space; the 5 lowest-residual candidates become seeds.
+2. **Local refinement** — MATLAB trust-region-reflective nonlinear least squares refines each seed to tolerance `10⁻¹⁰`. Best result is returned.
+
+### Design Optimization
+
+`design_optimization.m` searches over 60 design variables (3 per link × 20 links) to find the backbone geometry that minimizes the Jacobian condition number κ(J) — averaged over 60 randomly sampled load cases. A Von Mises safety constraint prevents plastic deformation (Bambu PC, σ_yield ≈ 62 MPa). Uses LHS global search followed by SQP (`fmincon`).
+
+---
+
+## Hardware
+
+<p align="center">
+  <img src="Images and Videos/fig_4_1_cad.png" width="620"/>
+</p>
+
+The custom test rig applies two independent 3D point forces simultaneously using:
+
+- **Two-axis articulating gimbal** for arbitrary force direction
+- **5× tensioning winches** (NEMA 17 + TMC2209 drivers, 256 microstep)
+- **5× 1 kg load cells** with HX711 ADCs for tension feedback
+- **ATI Mini40 IP65** 6-axis F/T sensor at the proximal end
+- **Arduino Mega** running the author-created control script
+
+The backbone is FDM 3D-printed in Bambu Lab Polycarbonate (PC) on a Bambu X1 Carbon. The SolidWorks parametric model is driven by an Excel Design Table, so printing a new geometry is as simple as exporting the optimized design vector.
+
+---
+
+## Repository Structure
+
 ```
-F = [F, s, θ] → W = [Fx, Fy, Fz, Tx, Ty, Tz]
-```
-leading to more accurate inverse estimates of force magnitude and contact position.
+forward_model.m              # Applies forces + tendon tensions → proximal wrench (SoRoSim wrapper)
+inverse_model.m              # Recovers forces from measured wrench (2-stage nonlinear least squares)
+forward_model_parallel.m     # Parallelized forward model for batch evaluation
+inverse_model_parallel.m     # Parallelized inverse model
+design_optimization.m        # Backbone geometry optimizer (LHS global + SQP local)
+compute_jacobian.m           # Finite-difference Jacobian ∂W/∂F
+apply_gaussian_force.m       # Converts point loads to discrete Gaussian distributions
+calc_ellipse_vonmises.m      # Von Mises stress for elliptical cross-sections (safety check)
+global_to_local.m            # Coordinate frame transforms
+update_design.m              # Applies a design vector to the SoRoSim robot model
+plot_robot.m                 # Visualizes deflected backbone, tendons, and applied forces
+jacobian_tester.m            # Validates Jacobian computation
+copyHandle.m                 # Deep copy for MATLAB handle objects
+my_robot.mat                 # Saved baseline robot configuration
 
----
-
-## 🚀 Project Overview
-
-### 🔍 Research Focus
-
-* Real-time **force and contact-location estimation** for CTRs.
-* Studying how geometry (taper, oscillation, stiffness gradients) changes the injectivity of the forward map.
-* Evaluating **noise-robustness** using tendon perturbations, proximal wrench differences, and Lipschitz/α-based metrics.
-* Physics-based forward modeling using **Cosserat rod theory** (PyElastica or custom solvers).
-* Optimization of multi-segment geometries (20-element radius arrays) under noise.
-
-### 🧪 Key Contributions
-
-* Demonstrated that **tapered geometries** significantly reduce non-uniqueness ("degeneracies") present in cylindrical beams.
-* Showed **43% reduction** in mean contact-location error and **49% reduction** in STD vs cylindrical designs (p ≈ 0.096).
-* Identified why tapered designs are **sensitive to measurement noise** and methods to mitigate this.
-* Developed global injectivity testing via:
-  * Pairwise distance maps (r_ij)
-  * Local Jacobian singular values (α = σ_min(J))
-  * Multi-force (two-contact) mapping tests
-
----
-
-## 📂 Repository Structure
-
-```
-/src
-    /forward_model        # Cosserat rod + tendon actuation model
-    /inverse_estimation   # Nonlinear least-squares solvers
-    /geometry             # Radius arrays, taper patterns, oscillations
-    /optimization         # r_array optimization, multi-start solvers
-    /analysis             # Injectivity tests (r_ij, Jacobians), noise studies
-    /visualization        # Plots, heatmaps, 3D force mapping visualizations
-/notebooks
-    Exploration.ipynb     # Quick prototyping + visualization
-/results
-    figures/              # Plots for paper
-    data/                 # Saved simulation outputs
-README.md
+Arduino/                     # Arduino Mega control script (winches + load cells)
+ATI Sensor Calibration/      # ATI Mini40 calibration files
+CAD/                         # SolidWorks parametric backbone and test rig models
+Figures/                     # Publication figures
+Optimization Results/        # Saved optimizer outputs
+my_robots/                   # Saved SoRoSim robot configurations
 ```
 
 ---
 
-## 🧩 Methods
+## Dependencies
 
-### 🦴 Forward Modeling
-
-* 3D Cosserat rod formulation
-* Tendon actuation forces applied as distributed loads
-* Geometry specified by a **20-segment radius array**
-
-### 🎯 Inverse Estimation
-
-* Nonlinear least squares (MATLAB or Python)
-* Residuals include:
-  * ΔW directions (normalized)
-  * Force magnitude residuals
-  * Perturbation-based differential signals
-
-### 🧬 Injectivity & Conditioning
-
-* Pairwise test:
-  ```
-  r_ij = |W_i - W_j| / |F_i - F_j|
-  ```
-* Local sensitivity:
-  ```
-  α = σ_min(∂W/∂F)
-  ```
-
-### 🧼 Noise-Robustness Studies
-
-* Gaussian noise on proximal wrenches
-* Tendon perturbation symmetry studies
-* Degeneracy detection (proximal vs distal force equivalence)
+- MATLAB R2023+ with:
+  - [SoRoSim toolbox](https://github.com/SoRoSim/SoRoSim)
+  - Optimization Toolbox (`fmincon`, `lsqnonlin`)
+  - Statistics and Machine Learning Toolbox (Latin Hypercube Sampling)
+- Arduino IDE (for hardware control)
+- Bambu X1 Carbon + PC filament (for fabrication)
 
 ---
 
-## 📈 Key Results (Summary)
-
-### ✔️ What Works Well
-
-* Tapers eliminate fold-back degeneracies found in cylinders
-* Unique mapping for a wider range of contact positions
-* Strong improvement in position estimation
-
-### ⚠️ What Still Needs Work
-
-* Taper designs can be **highly noise-sensitive** at small s
-* ΔW normalization amplifies noise when signals are small
-* Cylinder sometimes matches taper performance when noise dominates
-
----
-
-## 🧭 Roadmap
-
-* [ ] Integrate JAX-FEM for faster differentiation
-* [ ] Add GPU-accelerated multi-force estimation
-* [ ] Implement helical/twisted geometries
-* [ ] Create a unified surrogate-model pipeline
-* [ ] Release dataset + benchmark suite
-
----
-
-## 📝 Citation
-
-If you use this repository in academic work, please cite:
+## Citation
 
 ```bibtex
-@article{jones2025forceestimation,
-  title={Bio-Inspired Force Estimation in Tendon-Driven Continuum Robots},
-  author={Jones, Noah Loïc},
-  journal={Under Review},
-  year={2025}
+@mastersthesis{jones2025whisker,
+  title  = {Bio-Inspired Backbone Geometry for Multi-Point 3D Force Estimation in Continuum Robots},
+  author = {Jones, Noah},
+  school = {University of California San Diego},
+  year   = {2025}
 }
 ```
 
 ---
 
-## 💬 Contact
-
-**Noah Loïc Jones**  
-UC San Diego — Morimoto Lab  
-📧 noahloicjones (at) gmail (dot) com  
-🔗 GitHub: *your-username*  
-🔗 LinkedIn: *your-linkedin-profile*
-
----
-
-## 📄 License
-
-[Add your license information here - e.g., MIT, Apache 2.0, etc.]
+**Noah Jones** · noahloicjones@gmail.com · [Morimoto Lab, UC San Diego](https://sites.google.com/view/morimotolab)
