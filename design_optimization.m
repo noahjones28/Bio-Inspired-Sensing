@@ -4,9 +4,17 @@ function design_optimization(design)
     %% CONFIGURATION & SETUP
     % Select Design & Bounds
     if design == "elliptical_20_links"
-        % [ry_1, rz_1, Φ_1, ...,ry_20, rz_20, Φ_20] 
         lb = repmat([1e-3, 1e-3, 0], 1, 20);
         ub = repmat([6e-3, 6e-3, pi/2], 1, 20);
+        expand_design = @(x) x;            % identity — already full
+        fixed_idx = 3;
+        fixed_val = 0;    
+    elseif design == "circular_uniform"
+        lb = 1e-3;
+        ub = 6e-3;
+        expand_design = @(r) repmat([r, r, 0], 1, 20);  % single r → [r,r,0, r,r,0, ...]
+        fixed_idx = [];                     % nothing to fix
+        fixed_val = [];
     else
         error("Invalid design selected!");
     end
@@ -24,6 +32,7 @@ function design_optimization(design)
 
     % Generate Test Forces
     test_forces = generate_test_forces(n_test_forces, F_range, s_range, theta_range, tau_range, s_sep_min);
+    
     
     %% STAGE 1: GLOBAL SEARCH (LHS)
     fprintf('\n=== STAGE 1: Global Feasible Search (%d samples) ===\n', n_global_samples);
@@ -43,10 +52,10 @@ function design_optimization(design)
     n_feasible = 0;
     
     for i = 1:n_global_samples
-        x_curr = X_samples(i,:);
+        x_curr = expand_design(X_samples(i,:));
         
         % Check safety constraint: c <= 0 means safe (FOS >= 1)
-        [c, ~] = safety_constraint(x_curr, design, yield_strength, F_range, s_range, theta_range);
+        [c, ~] = safety_constraint(x_curr, yield_strength, F_range, s_range, theta_range);
         sample_constraints(i) = max(c);
         
         if any(c > 0)
@@ -56,7 +65,7 @@ function design_optimization(design)
             sample_costs(i) = 1e20 + max(c);
         else
             % FEASIBLE: Evaluate the actual objective function
-            sample_costs(i) = objective_scalar(x_curr, test_forces, design);
+            sample_costs(i) = objective_scalar(x_curr, test_forces);
             n_feasible = n_feasible + 1;
         end
         
@@ -87,12 +96,14 @@ function design_optimization(design)
     %% STAGE 2: LOCAL REFINEMENT (fmincon)
     fprintf('\n=== STAGE 2: Local Refinement (fmincon) ===\n');
     
-    % Fix phi_1 (Don't rotate first segment to preserve joint axis)
-    fixed_idx = 3;                          % phi_1 position in 60-var vector
-    fixed_val = 0;  
-    opt_idx = setdiff(1:length(x0), fixed_idx);  % indices 1,2,4,5,...,60
-    % Helper: insert fixed variable back into full 60-var vector
-    expand = @(x_red) insertval(x_red, fixed_idx, fixed_val, length(x0));
+    % Set up which variables the optimizer sees vs. which are held fixed
+    if isempty(fixed_idx)
+        opt_idx = 1:length(x0);                      % nothing fixed, optimize everything
+        expand = @(x_red) expand_design(x_red);
+    else
+        opt_idx = setdiff(1:length(x0), fixed_idx);   % skip fixed variables
+        expand = @(x_red) expand_design(insertval(x_red, fixed_idx, fixed_val, length(x0)));
+    end
     
     options = optimoptions('fmincon', ...
         'Algorithm', 'sqp', ...
@@ -106,9 +117,9 @@ function design_optimization(design)
         'OutputFcn', @(x,ov,st) plot_best_output(expand(x), ov, st));
 
     % Run Optimization
-    [x_final, fval, ~, ~] = fmincon(@(x) objective_scalar(expand(x), test_forces, design), ...
+    [x_final, fval, ~, ~] = fmincon(@(x) objective_scalar(expand(x), test_forces), ...
                                     x0(opt_idx), [], [], [], [], lb(opt_idx), ub(opt_idx), ...
-                                    @(x) safety_constraint(expand(x), design, yield_strength, F_range, s_range, theta_range), options);
+                                    @(x) safety_constraint(expand(x), yield_strength, F_range, s_range, theta_range), options);
     
     % Reconstruct full 60-variable result
     x_final = expand(x_final);
@@ -123,9 +134,9 @@ end
 
 
 %% OBJECTIVE FUNCTION
-function cost = objective_scalar(x, test_forces, design)
+function cost = objective_scalar(x, test_forces)
     % Update Design
-    S = update_design(x, design, false);
+    S = update_design(x, false);
     
     % Split inputs
     force_inputs = test_forces(:, 1:6);
@@ -158,8 +169,8 @@ end
 
 
 %% CONSTRAINT FUNCTION
-function [c, ceq] = safety_constraint(x, design, yield_strength, F_range, s_range, theta_range)
-    S = update_design(x, design, false);
+function [c, ceq] = safety_constraint(x, yield_strength, F_range, s_range, theta_range)
+    S = update_design(x, false);
 
     F_max = F_range(2);
     s_tip = s_range(2);
