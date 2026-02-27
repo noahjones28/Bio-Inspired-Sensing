@@ -23,6 +23,7 @@ for i = 1:n_test_forces
     % Get condition number of Jacobian
     k = cond(Jw{i});
     cond_nums(i) = k;
+    fprintf('Condition number (%d): %.6e\n', i, k);
 
     % Compute Physical Uncertainties
     [Cov_phys, Sigmas_phys] = compute_covariance_phys(Jw{i}, param_scales);

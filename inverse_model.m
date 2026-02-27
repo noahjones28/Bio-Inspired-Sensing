@@ -8,38 +8,20 @@ function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array)
     
 
     %% SETUP
-    lb = [0.1, 0.02, 0, 0.1, 0.02, 0]; % Lower bounds for estimation of [F,s,theta]
-    ub = [1, 0.2, 2*pi, 1, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta]
+    lb = [0.3, 0.02, 0, 0.3, 0.02, 0]; % Lower bounds for estimation of [F,s,theta]
+    ub = [1.5, 0.2, 2*pi, 1.5, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta]
+    x_typical = (lb + ub) / 2;
     n_design_vars = length(ub); % Number of design variables
     plot_residual = true; % Enable or disable the live residual plot
     plot_force = true; % Enable or disable the live force-visualization plot
-    simulation = true; % Set to 'false' if using empirical measurements, 'true' if running a simulation.
-    sensor_offset = 90e-3; % Adjust the offset between the 6axis f/t sensor and the beam base
-    n_global_samples = 400; % Number of LHS samples for global exploration 
+    n_global_samples = 200; % Number of LHS samples for global exploration 
     n_start_points = 5;  % Number of top candidate start points to refine (must be less than n_global_samples)
     iteration_counter = 0; % Initialize plotting variables
     best_values = [];
     iterations = [];
-
-    if ~simulation
-        % Apply offset correction to raw data)
-        if sensor_offset > 0
-            prox_target(:,2) = prox_target(:,2)+sensor_offset*prox_target(:,6); % Ty_base = Ty_sensor+sensor_offset*Fz_sensor
-            prox_target(:,3) = prox_target(:,3)-sensor_offset*prox_target(:,5); % Tz_base = Tz_sensor-sensor_offset*Fy_sensor
-        end
-        
-        % Residual Weighting: Residuals are weighted to reduce the influence
-        % of noisy measurements and prioritize reliable ones. 
-        % Noise-Based Scaling: Each output wrench component is scaled by the
-        % inverse of it's error standard deviation, σ_error.
-        sigma_error = [0.005, 0.01598, 0.01215,	0.06838, 0.06938, 0.09147];
-        weight_vector = 1./sigma_error;
-    else
-        % Weightings for simulation
-        force_scale = 1;   % Typical force magnitude in N
-        torque_scale = 0.1;   % Typical torque magnitude in Nm
-        weight_vector = [1/torque_scale, 1/torque_scale, 1/torque_scale, 1/force_scale, 1/force_scale, 1/force_scale]; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
-    end
+    % SENSING RANGES from ATI spec sheet 
+    R = [1, 1, 1, 60, 20, 20];
+    weight_vector = 1./R; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
     
     % Initialize live residual plot
     if plot_residual
@@ -102,6 +84,7 @@ function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array)
             'OptimalityTolerance', 1e-10, ...
             'MaxIterations', 50, ...
             'FiniteDifferenceType', 'forward', ...
+            'TypicalX', x_typical, ...
             'OutputFcn', @output_function);
         
         % Create optimization problem for MultiStart
