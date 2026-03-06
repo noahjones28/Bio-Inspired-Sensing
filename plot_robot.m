@@ -19,7 +19,7 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
         figure(fig_handle); % Use existing figure
         clf;
         % Figure config
-        set(gcf, 'Position', [1920/2, 100, 800, 800]);
+        set(gcf, 'Position', [960, 0, 960, 1080]);
         set(gca, 'Units','normalized', 'Position', [0.2 0.2 0.70 0.56]);
         hold on; grid on; axis equal; axis vis3d; 
     elseif doPlot && plot_geometry
@@ -47,6 +47,8 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
     zlabel('Z (m)');
     title('Deflected Robot Shape');
     view(120, 15);
+    %view(270, 90) 
+    %camva(5)   % zoom in (narrow view angle)
     rotate3d on; grid on; axis equal
     camlight(120, 45);
     
@@ -90,9 +92,6 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
         % translation
         translations(:,i) = pos_xyz(:,i) - undeflected_backbone(:,i);
     end
-
-    % Plot the undeflected backbone
-    h_undeflected = plot3(undeflected_backbone(1,:), undeflected_backbone(2,:), undeflected_backbone(3,:), 'k--', 'LineWidth', 2);
         
     % --- Plot the x-axis, y-axis and z-axis global axis ---
     quiver3(0,0,0,1,0,0,0.02,'r-','MaxHeadSize',1.0,'LineWidth', 2)
@@ -106,16 +105,46 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
     if plot_disks
         theta = linspace(0, 2*pi, 50);
         r = 0.01;
-        disk_local = [zeros(size(theta)); r*cos(theta); r*sin(theta); ones(size(theta))];
+        disk_t = 0.00175/2; % half-thickness (1.75mm total)
+        hole_r = 0.001; % 2mm diameter holes
+        hole_d = 0.008; % 8mm offset from backbone
+        hole_ang = [30, 150, 270]; % tendon angles
+        theta_h = linspace(0, 2*pi, 20);
+        disk_alpha = 0.5;
         
-        link_skip = 2;  % Plot every 2nd link (1 = every link, 2 = every other, 3 = every 3rd, etc.)
+        disk_front = [ disk_t*ones(size(theta)); r*cos(theta); r*sin(theta); ones(size(theta))];
+        disk_back  = [-disk_t*ones(size(theta)); r*cos(theta); r*sin(theta); ones(size(theta))];
+        
+        link_skip = 2;  % Plot every 2nd link
         points_per_link = num_sig / S.N;
         for i = link_skip:link_skip:S.N
             idx = i * points_per_link;
             T = transform_matrices((idx-1)*4+1:idx*4, :);
-            disk_tf = T * disk_local;
-            fill3(disk_tf(1,:), disk_tf(2,:), disk_tf(3,:), [0.8 0.8 0.8], 'FaceAlpha', 0.5);
-            plot3(disk_tf(1,:), disk_tf(2,:), disk_tf(3,:), 'k', 'LineWidth', 1);
+            ftf = T * disk_front;
+            btf = T * disk_back;
+            % Front/back faces
+            fill3(ftf(1,:), ftf(2,:), ftf(3,:), [0.8 0.8 0.8], 'FaceAlpha', disk_alpha);
+            fill3(btf(1,:), btf(2,:), btf(3,:), [0.8 0.8 0.8], 'FaceAlpha', disk_alpha);
+            % Outer cylindrical wall
+            surf([ftf(1,:); btf(1,:)], [ftf(2,:); btf(2,:)], [ftf(3,:); btf(3,:)], ...
+                'FaceColor', [0.75 0.75 0.75], 'FaceAlpha', disk_alpha, 'EdgeColor', 'none');
+            % Edge outlines
+            plot3(ftf(1,:), ftf(2,:), ftf(3,:), 'k', 'LineWidth', 1);
+            plot3(btf(1,:), btf(2,:), btf(3,:), 'k', 'LineWidth', 1);
+            % Tendon holes — inverse-rotate global tendon offset into local frame
+            R = T(1:3, 1:3);
+            for h = 1:3
+                global_off = [0; hole_d*cosd(hole_ang(h)); hole_d*sind(hole_ang(h))];
+                local_off = R' * global_off;  % rotate global offset into disk-local coords
+                cy = local_off(2);
+                cz = local_off(3);
+                hf = T * [ disk_t*ones(size(theta_h)); cy+hole_r*cos(theta_h); cz+hole_r*sin(theta_h); ones(size(theta_h))];
+                hb = T * [-disk_t*ones(size(theta_h)); cy+hole_r*cos(theta_h); cz+hole_r*sin(theta_h); ones(size(theta_h))];
+                fill3(hf(1,:), hf(2,:), hf(3,:), [0.2 0.2 0.2], 'FaceAlpha', 1);
+                fill3(hb(1,:), hb(2,:), hb(3,:), [0.2 0.2 0.2], 'FaceAlpha', 1);
+                surf([hf(1,:); hb(1,:)], [hf(2,:); hb(2,:)], [hf(3,:); hb(3,:)], ...
+                    'FaceColor', [0.3 0.3 0.3], 'FaceAlpha', 1, 'EdgeColor', 'none');
+            end
         end
     end
 
@@ -143,9 +172,25 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
         tendon1_deflected = tendon1_undeflected+translations;
         tendon2_deflected = tendon2_undeflected+translations;
         tendon3_deflected = tendon3_undeflected+translations;
-        h_tendon1 = plot3(tendon1_deflected(1,:), tendon1_deflected(2,:), tendon1_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#9334e6'));
-        h_tendon2 = plot3(tendon2_deflected(1,:), tendon2_deflected(2,:), tendon2_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#e1477e'));
-        h_tendon3 = plot3(tendon3_deflected(1,:), tendon3_deflected(2,:), tendon3_deflected(3,:), 'm-.', 'LineWidth', 2, 'MarkerSize', 10, 'Color', hex2rgb('#741b47'));
+        h_tendon1 = plot3(tendon1_deflected(1,:), tendon1_deflected(2,:), tendon1_deflected(3,:), 'm-', 'LineWidth', 3, 'MarkerSize', 10, 'Color', hex2rgb('#898989'));
+        h_tendon2 = plot3(tendon2_deflected(1,:), tendon2_deflected(2,:), tendon2_deflected(3,:), 'm-', 'LineWidth', 3, 'MarkerSize', 10, 'Color', hex2rgb('#898989'));
+        h_tendon3 = plot3(tendon3_deflected(1,:), tendon3_deflected(2,:), tendon3_deflected(3,:), 'm-', 'LineWidth', 3, 'MarkerSize', 10, 'Color', hex2rgb('#898989'));
+    end
+    
+    % Endpoint labels for tendons — offset radially to avoid overlap
+    label_offset = 0.003;
+    tendon_angles = [30, 150, 270]; % degrees, matching tendon placement
+    tendon_labels = {'T1', 'T2', 'T3'};
+    tendon_endpoints = {tendon1_deflected, tendon2_deflected, tendon3_deflected};
+    
+    for t = 1:3
+        ep = tendon_endpoints{t}(:, end);
+        dy = label_offset * cosd(tendon_angles(t));
+        dz = label_offset * sind(tendon_angles(t));
+        text(ep(1), ep(2) + dy, ep(3) + dz, tendon_labels{t}, ...
+            'FontSize', 12, 'FontWeight', 'bold', ...
+            'HorizontalAlignment', 'center', ...
+            'BackgroundColor', 'w', 'EdgeColor', 'k', 'Margin', 2);
     end
     
     % Get backbone positions of the forces
@@ -225,10 +270,10 @@ function plot_robot(S, q, distal_values, tau_array, internal_wrenches, doPlot, f
         % Add legend with parameter values for forces and tendons
         if plot_tendons
             legend_labels = cell(1, length(locs) + 4);
-            legend_handles = [h_forces, h_tendon1, h_tendon2, h_tendon3, h_undeflected];
+            legend_handles = [h_forces, h_tendon1, h_tendon2, h_tendon3];
         else
             legend_labels = cell(1, length(locs) + 1);
-            legend_handles = [h_forces, h_undeflected];
+            legend_handles = [h_forces];
         end
         
         for i = 1:length(locs)

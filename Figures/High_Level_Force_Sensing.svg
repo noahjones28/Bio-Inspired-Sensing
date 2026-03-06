@@ -1,0 +1,1197 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 1920 1080"
+   version="1.1"
+   id="svg75"
+   sodipodi:docname="High_Level_Force_Sensing.svg"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
+   inkscape:export-filename="High_Level_Force_Sensing.png"
+   inkscape:export-xdpi="300"
+   inkscape:export-ydpi="300"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview75"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.51302083"
+     inkscape:cx="742.6599"
+     inkscape:cy="728.04061"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg75" />
+  <defs
+     id="defs4">
+    <marker
+       id="arrow-main"
+       markerWidth="14"
+       markerHeight="10"
+       refX="12"
+       refY="5"
+       orient="auto">
+      <polygon
+         points="0,0 14,5 0,10"
+         fill="#2563eb"
+         id="polygon1" />
+    </marker>
+    <marker
+       id="arrow-loop"
+       markerWidth="14"
+       markerHeight="10"
+       refX="12"
+       refY="5"
+       orient="auto">
+      <polygon
+         points="0,0 14,5 0,10"
+         fill="#64748b"
+         id="polygon2" />
+    </marker>
+    <marker
+       id="arrow-green"
+       markerWidth="14"
+       markerHeight="10"
+       refX="12"
+       refY="5"
+       orient="auto">
+      <polygon
+         points="0,0 14,5 0,10"
+         fill="#16a34a"
+         id="polygon3" />
+    </marker>
+    <marker
+       id="arrow-purple"
+       markerWidth="14"
+       markerHeight="10"
+       refX="12"
+       refY="5"
+       orient="auto">
+      <polygon
+         points="0,0 14,5 0,10"
+         fill="#a21caf"
+         id="polygon4" />
+    </marker>
+    <style
+       id="style4">
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+      .title-text { font-family: 'Inter', sans-serif; font-weight: 700; }
+      .label-text { font-family: 'Inter', sans-serif; font-weight: 600; }
+      .body-text { font-family: 'Inter', sans-serif; font-weight: 400; }
+      .mono-text { font-family: 'Consolas', 'Monaco', monospace; font-weight: 600; }
+    </style>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1">
+      <rect
+         style="fill:none;stroke:none;stroke-width:15.8"
+         id="rect2"
+         width="1700"
+         height="1077.929"
+         x="0"
+         y="0.97461927" />
+    </clipPath>
+  </defs>
+  <!-- Background -->
+  <!-- Title -->
+  <rect
+     style="fill:#fdfdfd;stroke:none;stroke-width:15.8;fill-opacity:1"
+     id="rect3"
+     width="1920.0029"
+     height="1080.0049"
+     x="0"
+     y="0" />
+  <text
+     x="959.40668"
+     y="57.151855"
+     text-anchor="middle"
+     class="title-text"
+     font-size="42px"
+     fill="#1a1a1a"
+     id="text4">Force Sensing Schematic</text>
+  <!-- Legend -->
+  <rect
+     x="147.50145"
+     y="80.151855"
+     width="56"
+     height="6"
+     rx="3"
+     fill="#2563eb"
+     id="rect5" />
+  <rect
+     x="361.50146"
+     y="80.151855"
+     width="56"
+     height="6"
+     rx="3"
+     fill="#2563eb"
+     id="rect5-6"
+     style="fill:#64748b;fill-opacity:1" />
+  <text
+     x="213.50145"
+     y="89.151855"
+     class="body-text"
+     font-size="19px"
+     fill="#64748b"
+     id="text5"
+     style="fill:#333333;fill-opacity:1"><tspan
+       style="font-style:normal;font-variant:normal;font-weight:600;font-stretch:normal;font-family:Inter, sans-serif;-inkscape-font-specification:'Inter, sans-serif Semi-Bold';fill:#333333;fill-opacity:1"
+       id="tspan75">Main <tspan
+   style="font-size:20px;fill:#333333;fill-opacity:1"
+   id="tspan76">flow</tspan></tspan></text>
+  <text
+     x="423.50146"
+     y="89.151855"
+     class="body-text"
+     font-size="19px"
+     fill="#64748b"
+     id="text6"
+     style="font-size:20px;fill:#333333;fill-opacity:1"><tspan
+       style="font-style:normal;font-variant:normal;font-weight:600;font-stretch:normal;font-size:20px;font-family:Inter, sans-serif;-inkscape-font-specification:'Inter, sans-serif Semi-Bold';fill:#333333;fill-opacity:1"
+       id="tspan77">Optimization loop</tspan></text>
+  <!-- Phase labels -->
+  <text
+     x="285.83105"
+     y="125.15186"
+     class="label-text"
+     font-size="18px"
+     fill="#94a3b8"
+     letter-spacing="2.5"
+     id="text7"
+     style="fill:#333333;fill-opacity:1">INPUT</text>
+  <text
+     x="782.87091"
+     y="125.15186"
+     class="label-text"
+     font-size="18px"
+     fill="#94a3b8"
+     letter-spacing="2.5"
+     id="text8"
+     style="fill:#333333;fill-opacity:1">OPTIMIZATION ENGINE</text>
+  <text
+     x="1524.834"
+     y="125.15186"
+     class="label-text"
+     font-size="18px"
+     fill="#94a3b8"
+     letter-spacing="2.5"
+     id="text9"
+     style="fill:#333333;fill-opacity:1">OUTPUT</text>
+  <!-- ===== 1. INPUT BOX ===== -->
+  <g
+     transform="translate(147.50145,145.15186)"
+     id="g17">
+    <rect
+       width="340"
+       height="260"
+       rx="10"
+       fill="#ffffff"
+       stroke="#e2e8f0"
+       stroke-width="1.5"
+       id="rect9"
+       x="0"
+       y="0" />
+    <rect
+       width="340"
+       height="54"
+       rx="10"
+       fill="#2563eb"
+       id="rect10"
+       x="0"
+       y="0" />
+    <rect
+       y="44"
+       width="340"
+       height="10"
+       fill="#2563eb"
+       id="rect11"
+       x="0" />
+    <circle
+       cx="30"
+       cy="27"
+       r="16"
+       fill="#ffffff"
+       id="circle11" />
+    <text
+       x="30"
+       y="33"
+       text-anchor="middle"
+       class="title-text"
+       font-size="19px"
+       fill="#2563eb"
+       id="text11">1</text>
+    <text
+       x="58"
+       y="35"
+       class="title-text"
+       font-size="23px"
+       fill="#ffffff"
+       id="text12">INPUT</text>
+    <!-- Measured Wrench -->
+    <text
+       x="174.93848"
+       y="86"
+       text-anchor="middle"
+       class="label-text"
+       font-size="21px"
+       fill="#333333"
+       id="text13">Measured Proximal Wrench</text>
+    <rect
+       x="15"
+       y="98"
+       width="320"
+       height="40"
+       rx="6"
+       fill="#dbeafe"
+       stroke="#2563eb"
+       stroke-width="1"
+       id="rect13" />
+    <text
+       x="176.48926"
+       y="126"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="20px"
+       fill="#1e40af"
+       id="text14">Wₘ = [Tx, Ty, Tz, Fx, Fy, Fz]</text>
+    <text
+       x="175.09668"
+       y="160"
+       text-anchor="middle"
+       class="body-text"
+       font-size="18px"
+       fill="#64748b"
+       id="text15"
+       style="fill:#333333;fill-opacity:1">6-axis F/T sensor</text>
+    <!-- Tendon Tensions -->
+    <text
+       x="174.67188"
+       y="186"
+       text-anchor="middle"
+       class="label-text"
+       font-size="21px"
+       fill="#333333"
+       id="text16">Measured Tendon Tensions</text>
+    <rect
+       x="15"
+       y="198"
+       width="320"
+       height="40"
+       rx="6"
+       fill="#dbeafe"
+       stroke="#2563eb"
+       stroke-width="1"
+       id="rect16" />
+    <text
+       x="176.40137"
+       y="226"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="20px"
+       fill="#1e40af"
+       id="text17">τ = [τ₁, τ₂, τ₃]</text>
+    <text
+       x="175.09668"
+       y="261.83115"
+       text-anchor="middle"
+       class="body-text"
+       font-size="18px"
+       fill="#64748b"
+       id="text15-7"
+       style="font-weight:400;font-family:Inter, sans-serif;fill:#333333;fill-opacity:1">Load Cell</text>
+  </g>
+  <!-- Arrow: Input → Optimizer -->
+  <path
+     d="m 497.50145,295.15186 h 90"
+     stroke="#2563eb"
+     stroke-width="4"
+     fill="none"
+     marker-end="url(#arrow-main)"
+     id="path17"
+     sodipodi:nodetypes="cc" />
+  <rect
+     x="514.5014"
+     y="241.15186"
+     width="64"
+     height="28"
+     rx="4"
+     fill="#dbeafe"
+     stroke="#2563eb"
+     stroke-width="1"
+     id="rect17" />
+  <text
+     x="546.92328"
+     y="259.34863"
+     text-anchor="middle"
+     class="mono-text"
+     font-size="18px"
+     fill="#1e40af"
+     id="text18">Wₘ, τ</text>
+  <!-- ===== 2. OPTIMIZATION BOX ===== -->
+  <g
+     transform="translate(602.50145,145.15186)"
+     id="g31">
+    <rect
+       width="600"
+       height="390"
+       rx="10"
+       fill="#ffffff"
+       stroke="#e2e8f0"
+       stroke-width="1.5"
+       id="rect18"
+       x="0"
+       y="0" />
+    <rect
+       width="600"
+       height="54"
+       rx="10"
+       fill="#2563eb"
+       id="rect19"
+       x="0"
+       y="0" />
+    <rect
+       y="44"
+       width="600"
+       height="10"
+       fill="#2563eb"
+       id="rect20"
+       x="0" />
+    <circle
+       cx="30"
+       cy="27"
+       r="16"
+       fill="#ffffff"
+       id="circle20" />
+    <text
+       x="30"
+       y="33"
+       text-anchor="middle"
+       class="title-text"
+       font-size="19px"
+       fill="#2563eb"
+       id="text20">2</text>
+    <text
+       x="58"
+       y="35"
+       class="title-text"
+       font-size="23px"
+       fill="#ffffff"
+       id="text21">OPTIMIZATION</text>
+    <!-- Goal -->
+    <rect
+       x="7.0556774"
+       y="66"
+       width="586"
+       height="38"
+       rx="6"
+       fill="#1e40af"
+       id="rect21" />
+    <text
+       x="300"
+       y="92"
+       text-anchor="middle"
+       class="label-text"
+       font-size="19px"
+       fill="#ffffff"
+       id="text22">Goal: Minimize wrench residual subject to bounded design variables</text>
+    <!-- Formulation: x* = argmin_x ||r(x)||^2 s.t. lb <= x <= ub -->
+    <rect
+       x="60.133301"
+       y="118"
+       width="480"
+       height="44"
+       rx="6"
+       fill="#dbeafe"
+       stroke="#2563eb"
+       stroke-width="1"
+       id="rect22" />
+    <text
+       x="300.20508"
+       y="148"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="21px"
+       fill="#1e40af"
+       id="text23">min ‖r(x)‖² s.t. lb ≤ x ≤ ub</text>
+    <text
+       x="152.13705"
+       y="155.30965"
+       class="mono-text"
+       font-size="14px"
+       fill="#1e40af"
+       baseline-shift="sub"
+       id="text24"
+       style="font-size:16px">x</text>
+    <!-- Design variables -->
+    <!-- Bounds -->
+    <!-- Stage 1 -->
+    <text
+       x="300"
+       y="278"
+       text-anchor="middle"
+       class="label-text"
+       font-size="20px"
+       fill="#1e40af"
+       id="text28">Stage 1 — Global Search</text>
+    <text
+       x="300"
+       y="306"
+       text-anchor="middle"
+       class="body-text"
+       font-size="19px"
+       fill="#475569"
+       id="text29"
+       style="fill:#333333;fill-opacity:1">LHS sampling (N=400) → K=5 best seeds</text>
+    <!-- Stage 2 -->
+    <text
+       x="300"
+       y="342"
+       text-anchor="middle"
+       class="label-text"
+       font-size="20px"
+       fill="#1e40af"
+       id="text30">Stage 2 — Local Refinement</text>
+    <text
+       x="300"
+       y="370"
+       text-anchor="middle"
+       class="body-text"
+       font-size="19px"
+       fill="#475569"
+       id="text31"
+       style="fill:#333333;fill-opacity:1">lsqnonlin (trust-region-reflective) from each seed</text>
+    <rect
+       x="91"
+       y="203.64183"
+       width="418"
+       height="43.999992"
+       rx="6"
+       fill="#dbeafe"
+       stroke="#2563eb"
+       stroke-width="1"
+       id="rect16-5" />
+    <text
+       x="300.89062"
+       y="233.75447"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="19px"
+       fill="#334155"
+       id="text25"
+       style="font-size:21px;fill:#1e40af;fill-opacity:1">x = [F₁, s₁, θ₁, F₂, s₂, θ₂] ∈ ℝ⁶</text>
+    <text
+       x="299.67188"
+       y="191.27246"
+       text-anchor="middle"
+       class="label-text"
+       font-size="21px"
+       fill="#333333"
+       id="text16-0"
+       style="font-weight:600;font-family:Inter, sans-serif">Design Variables</text>
+  </g>
+  <!-- Arrow: Optimizer → Output -->
+  <path
+     d="m 1202.5015,315.15186 h 145"
+     stroke="#2563eb"
+     stroke-width="4"
+     fill="none"
+     marker-end="url(#arrow-main)"
+     id="path31" />
+  <rect
+     x="1232.5015"
+     y="259.15186"
+     width="104"
+     height="28"
+     rx="4"
+     fill="#dbeafe"
+     stroke="#2563eb"
+     stroke-width="1"
+     id="rect31" />
+  <text
+     x="1284.5015"
+     y="279.15186"
+     text-anchor="middle"
+     class="label-text"
+     font-size="18px"
+     fill="#1e40af"
+     id="text32">converged</text>
+  <!-- ===== 3. OUTPUT BOX ===== -->
+  <g
+     transform="translate(1362.5015,145.15186)"
+     id="g39">
+    <rect
+       width="410"
+       height="240"
+       rx="10"
+       fill="#ffffff"
+       stroke="#e2e8f0"
+       stroke-width="1.5"
+       id="rect32"
+       x="0"
+       y="0" />
+    <rect
+       width="410"
+       height="54"
+       rx="10"
+       fill="#2563eb"
+       id="rect33"
+       x="0"
+       y="0" />
+    <rect
+       y="44"
+       width="410"
+       height="10"
+       fill="#2563eb"
+       id="rect34"
+       x="0" />
+    <circle
+       cx="30"
+       cy="27"
+       r="16"
+       fill="#ffffff"
+       id="circle34" />
+    <text
+       x="30"
+       y="33"
+       text-anchor="middle"
+       class="title-text"
+       font-size="19px"
+       fill="#2563eb"
+       id="text34">3</text>
+    <text
+       x="58"
+       y="35"
+       class="title-text"
+       font-size="23px"
+       fill="#ffffff"
+       id="text35">OUTPUT</text>
+    <text
+       x="205"
+       y="92"
+       text-anchor="middle"
+       class="label-text"
+       font-size="23px"
+       fill="#333333"
+       id="text36">Estimated External Forces</text>
+    <rect
+       x="16"
+       y="108"
+       width="378"
+       height="44"
+       rx="6"
+       fill="#dbeafe"
+       stroke="#2563eb"
+       stroke-width="1"
+       id="rect36" />
+    <text
+       x="205"
+       y="138"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="22px"
+       fill="#1e40af"
+       id="text37">x* = [F₁, s₁, θ₁, F₂, s₂, θ₂]</text>
+    <text
+       x="205"
+       y="178"
+       text-anchor="middle"
+       class="body-text"
+       font-size="19px"
+       fill="#64748b"
+       id="text38"
+       style="fill:#333333;fill-opacity:1">Optimal force parameters minimizing</text>
+    <text
+       x="205"
+       y="204"
+       text-anchor="middle"
+       class="body-text"
+       font-size="19px"
+       fill="#64748b"
+       id="text39"
+       style="fill:#333333;fill-opacity:1">wrench residual ‖r(x*)‖²</text>
+  </g>
+  <!-- ===== OPTIMIZATION LOOP CONTAINER ===== -->
+  <rect
+     x="147.50145"
+     y="573.15186"
+     width="1625"
+     height="480"
+     rx="12"
+     fill="#f0f4f8"
+     stroke="#cbd5e1"
+     stroke-width="1.5"
+     id="rect39"
+     style="fill:#bacdde;fill-opacity:1" />
+  <text
+     x="177.50145"
+     y="603.15186"
+     class="label-text"
+     font-size="18px"
+     fill="#94a3b8"
+     letter-spacing="2"
+     id="text40"
+     style="fill:#333333;fill-opacity:1">OPTIMIZATION LOOP (called each iteration)</text>
+  <!-- Loop arrow: down from optimizer -->
+  <path
+     d="m 720.50145,535.15186 v 84"
+     stroke="#64748b"
+     stroke-width="3"
+     stroke-dasharray="10, 6"
+     fill="none"
+     marker-end="url(#arrow-loop)"
+     id="path40"
+     sodipodi:nodetypes="cc"
+     style="stroke-width:4;stroke-dasharray:none" />
+  <rect
+     x="593.97675"
+     y="539.21936"
+     width="116"
+     height="30"
+     rx="4"
+     fill="#e2e8f0"
+     stroke="#94a3b8"
+     stroke-width="1"
+     id="rect40" />
+  <text
+     x="651.97675"
+     y="560.21936"
+     text-anchor="middle"
+     class="label-text"
+     font-size="18px"
+     fill="#64748b"
+     id="text41">evaluate x</text>
+  <!-- ===== RESIDUAL VECTOR MODULE ===== -->
+  <g
+     transform="translate(167.50145,619.15186)"
+     id="g56">
+    <rect
+       width="720"
+       height="410"
+       rx="10"
+       fill="#ffffff"
+       stroke="#e2e8f0"
+       stroke-width="1.5"
+       id="rect41"
+       x="0"
+       y="0" />
+    <rect
+       width="720"
+       height="54"
+       rx="10"
+       fill="#16a34a"
+       id="rect42"
+       x="0"
+       y="0" />
+    <rect
+       y="44"
+       width="720"
+       height="10"
+       fill="#16a34a"
+       id="rect43"
+       x="0" />
+    <circle
+       cx="30"
+       cy="27"
+       r="16"
+       fill="#ffffff"
+       id="circle43" />
+    <text
+       x="30"
+       y="33"
+       text-anchor="middle"
+       class="title-text"
+       font-size="19px"
+       fill="#16a34a"
+       id="text43">R</text>
+    <text
+       x="58"
+       y="35"
+       class="title-text"
+       font-size="23px"
+       fill="#ffffff"
+       id="text44">RESIDUAL VECTOR</text>
+    <!-- Signature -->
+    <rect
+       x="316"
+       y="12"
+       width="388"
+       height="34"
+       rx="6"
+       fill="#dcfce7"
+       stroke="#22c55e"
+       stroke-width="1"
+       id="rect44" />
+    <text
+       x="510"
+       y="36"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="19px"
+       fill="#166534"
+       id="text45">r(x) = residual_vector(x, Wₘ, τ)</text>
+    <!-- R.1 -->
+    <rect
+       x="16"
+       y="72"
+       width="50"
+       height="34"
+       rx="6"
+       fill="#16a34a"
+       id="rect45" />
+    <text
+       x="41"
+       y="95"
+       text-anchor="middle"
+       class="label-text"
+       font-size="18px"
+       fill="#ffffff"
+       id="text46">R.1</text>
+    <text
+       x="78"
+       y="95"
+       class="label-text"
+       font-size="20px"
+       fill="#333333"
+       id="text47">Forward Model Evaluation</text>
+    <rect
+       x="78"
+       y="112"
+       width="624"
+       height="40"
+       rx="6"
+       fill="#dcfce7"
+       stroke="#16a34a"
+       stroke-width="1"
+       id="rect47" />
+    <text
+       x="390"
+       y="139"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="19px"
+       fill="#166534"
+       id="text48">Wₛᵢₘ = forward_model(x, τ) → [Tx, Ty, Tz, Fx, Fy, Fz]</text>
+    <!-- R.2 -->
+    <rect
+       x="16"
+       y="170"
+       width="50"
+       height="34"
+       rx="6"
+       fill="#16a34a"
+       id="rect48" />
+    <text
+       x="41"
+       y="193"
+       text-anchor="middle"
+       class="label-text"
+       font-size="18px"
+       fill="#ffffff"
+       id="text49">R.2</text>
+    <text
+       x="78"
+       y="193"
+       class="label-text"
+       font-size="20px"
+       fill="#333333"
+       id="text50">Weight Vector (Sensor Range Normalization)</text>
+    <rect
+       x="78"
+       y="210"
+       width="624"
+       height="40"
+       rx="6"
+       fill="#dcfce7"
+       stroke="#16a34a"
+       stroke-width="1"
+       id="rect50" />
+    <text
+       x="390"
+       y="237"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="19px"
+       fill="#166534"
+       id="text51">w = [1/R₁, ..., 1/R₆] R = [1, 1, 1, 60, 20, 20]</text>
+    <!-- R.3 -->
+    <rect
+       x="16"
+       y="268"
+       width="50"
+       height="34"
+       rx="6"
+       fill="#16a34a"
+       id="rect51" />
+    <text
+       x="41"
+       y="291"
+       text-anchor="middle"
+       class="label-text"
+       font-size="18px"
+       fill="#ffffff"
+       id="text52">R.3</text>
+    <text
+       x="78"
+       y="291"
+       class="label-text"
+       font-size="20px"
+       fill="#333333"
+       id="text53">Weighted Residual</text>
+    <rect
+       x="78"
+       y="308"
+       width="624"
+       height="40"
+       rx="6"
+       fill="#dcfce7"
+       stroke="#16a34a"
+       stroke-width="1"
+       id="rect53" />
+    <text
+       x="390"
+       y="335"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="20px"
+       fill="#166534"
+       id="text54">r = w ⊙ (Wₛᵢₘ − Wₘ)</text>
+    <!-- Return -->
+    <rect
+       x="16"
+       y="380"
+       width="688"
+       height="36"
+       rx="6"
+       fill="#16a34a"
+       id="rect55" />
+    <text
+       x="360"
+       y="405"
+       text-anchor="middle"
+       class="title-text"
+       font-size="20px"
+       fill="#ffffff"
+       id="text56">Return: r ∈ ℝ⁶ (weighted residual vector)</text>
+  </g>
+  <!-- ===== FORWARD MODEL MODULE ===== -->
+  <g
+     transform="translate(957.50145,619.15186)"
+     id="g72">
+    <rect
+       width="720"
+       height="410"
+       rx="10"
+       fill="#ffffff"
+       stroke="#e2e8f0"
+       stroke-width="1.5"
+       id="rect56"
+       x="0"
+       y="0" />
+    <rect
+       width="720"
+       height="54"
+       rx="10"
+       fill="#a21caf"
+       id="rect57"
+       x="0"
+       y="0" />
+    <rect
+       y="44"
+       width="720"
+       height="10"
+       fill="#a21caf"
+       id="rect58"
+       x="0" />
+    <circle
+       cx="30"
+       cy="27"
+       r="16"
+       fill="#ffffff"
+       id="circle58" />
+    <text
+       x="30"
+       y="33"
+       text-anchor="middle"
+       class="title-text"
+       font-size="19px"
+       fill="#a21caf"
+       id="text58">F</text>
+    <text
+       x="58"
+       y="35"
+       class="title-text"
+       font-size="23px"
+       fill="#ffffff"
+       id="text59">FORWARD MODEL (SOROSIM)</text>
+    <!-- Signature -->
+    <rect
+       x="400"
+       y="12"
+       width="345"
+       height="34"
+       rx="6"
+       fill="#f5d0fe"
+       stroke="#e879f9"
+       stroke-width="1"
+       id="rect59" />
+    <text
+       x="572"
+       y="36"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="19px"
+       fill="#86198f"
+       id="text60">Wₛᵢₘ = forward_model(x, τ) ∈ ℝ⁶</text>
+    <!-- F.1 -->
+    <rect
+       x="16"
+       y="72"
+       width="50"
+       height="34"
+       rx="6"
+       fill="#a21caf"
+       id="rect60" />
+    <text
+       x="41"
+       y="95"
+       text-anchor="middle"
+       class="label-text"
+       font-size="18px"
+       fill="#ffffff"
+       id="text61">F.1</text>
+    <text
+       x="78"
+       y="95"
+       class="label-text"
+       font-size="20px"
+       fill="#333333"
+       id="text62">Assumptions</text>
+    <text
+       x="78"
+       y="126"
+       class="body-text"
+       font-size="19px"
+       fill="#64748b"
+       id="text63"
+       style="fill:#333333;fill-opacity:1">Transverse, concentric, follower forces; purely elastic deformation</text>
+    <!-- F.2 -->
+    <rect
+       x="16"
+       y="150"
+       width="50"
+       height="34"
+       rx="6"
+       fill="#a21caf"
+       id="rect63" />
+    <text
+       x="41"
+       y="173"
+       text-anchor="middle"
+       class="label-text"
+       font-size="18px"
+       fill="#ffffff"
+       id="text64">F.2</text>
+    <text
+       x="78"
+       y="173"
+       class="label-text"
+       font-size="20px"
+       fill="#333333"
+       id="text65">Apply Point Forces</text>
+    <rect
+       x="78"
+       y="190"
+       width="440"
+       height="40"
+       rx="6"
+       fill="#f5d0fe"
+       stroke="#a21caf"
+       stroke-width="1"
+       id="rect65" />
+    <text
+       x="298"
+       y="217"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="19px"
+       fill="#86198f"
+       id="text66">x = [F₁, s₁, θ₁, F₂, s₂, θ₂]</text>
+    <!-- F.3 -->
+    <rect
+       x="16"
+       y="248"
+       width="50"
+       height="34"
+       rx="6"
+       fill="#a21caf"
+       id="rect66" />
+    <text
+       x="41"
+       y="271"
+       text-anchor="middle"
+       class="label-text"
+       font-size="18px"
+       fill="#ffffff"
+       id="text67">F.3</text>
+    <text
+       x="78"
+       y="271"
+       class="label-text"
+       font-size="20px"
+       fill="#333333"
+       id="text68">Set Tendon Tensions</text>
+    <rect
+       x="78"
+       y="288"
+       width="254"
+       height="40"
+       rx="6"
+       fill="#f5d0fe"
+       stroke="#a21caf"
+       stroke-width="1"
+       id="rect68" />
+    <text
+       x="205"
+       y="315"
+       text-anchor="middle"
+       class="mono-text"
+       font-size="19px"
+       fill="#86198f"
+       id="text69">τ = [τ₁, τ₂, τ₃]</text>
+    <!-- F.4 -->
+    <rect
+       x="16"
+       y="346"
+       width="50"
+       height="34"
+       rx="6"
+       fill="#a21caf"
+       id="rect69" />
+    <text
+       x="41"
+       y="369"
+       text-anchor="middle"
+       class="label-text"
+       font-size="18px"
+       fill="#ffffff"
+       id="text70">F.4</text>
+    <text
+       x="78"
+       y="369"
+       class="label-text"
+       font-size="20px"
+       fill="#333333"
+       id="text71">Statics Simulation → Proximal Wrench</text>
+    <!-- Return -->
+    <rect
+       x="15"
+       y="380"
+       width="730"
+       height="36"
+       rx="6"
+       fill="#a21caf"
+       id="rect71" />
+    <text
+       x="380.09766"
+       y="405"
+       text-anchor="middle"
+       class="title-text"
+       font-size="20px"
+       fill="#ffffff"
+       id="text72">Return: Wₛᵢₘ = [Tx, Ty, Tz, Fx, Fy, Fz]</text>
+  </g>
+  <!-- ===== ARROWS BETWEEN MODULES ===== -->
+  <!-- Residual → Forward Model (green, right) -->
+  <path
+     d="m 870.27245,741.15186 h 31.43144 v -94.40773 l 64.13496,-0.34458"
+     stroke="#16a34a"
+     stroke-width="3"
+     fill="none"
+     marker-end="url(#arrow-green)"
+     id="path72"
+     sodipodi:nodetypes="cccc"
+     style="stroke-width:4;stroke-dasharray:none" />
+  <rect
+     x="897.3999"
+     y="594.35999"
+     width="56"
+     height="28"
+     rx="4"
+     fill="#dcfce7"
+     stroke="#16a34a"
+     stroke-width="1"
+     id="rect72" />
+  <text
+     x="925.3999"
+     y="614.35999"
+     text-anchor="middle"
+     class="mono-text"
+     font-size="18px"
+     fill="#166534"
+     id="text73">x, τ</text>
+  <!-- Forward Model → Residual (purple, left) -->
+  <path
+     d="M 973.09536,1018.959 H 942.96338 V 761.22293 h -68.56853"
+     stroke="#a21caf"
+     stroke-width="3"
+     fill="none"
+     marker-end="url(#arrow-purple)"
+     id="path73"
+     sodipodi:nodetypes="cccc"
+     style="stroke-width:4;stroke-dasharray:none" />
+  <rect
+     x="896.25806"
+     y="1029.9573"
+     width="60"
+     height="28"
+     rx="4"
+     fill="#f5d0fe"
+     stroke="#a21caf"
+     stroke-width="1"
+     id="rect73" />
+  <text
+     x="926.25806"
+     y="1049.9573"
+     text-anchor="middle"
+     class="mono-text"
+     font-size="18px"
+     fill="#86198f"
+     id="text74">Wₛᵢₘ</text>
+  <!-- Residual returns r(x) back up to optimizer -->
+  <path
+     d="m 783.50145,619.15186 v -84"
+     stroke="#16a34a"
+     stroke-width="3"
+     stroke-dasharray="10, 6"
+     fill="none"
+     marker-end="url(#arrow-green)"
+     id="path74"
+     sodipodi:nodetypes="cc"
+     style="stroke-width:4;stroke-dasharray:none;stroke-dashoffset:0" />
+  <rect
+     x="807.08002"
+     y="540.21936"
+     width="72"
+     height="28"
+     rx="4"
+     fill="#dcfce7"
+     stroke="#16a34a"
+     stroke-width="1"
+     id="rect74" />
+  <text
+     x="843.08002"
+     y="560.21936"
+     text-anchor="middle"
+     class="mono-text"
+     font-size="18px"
+     fill="#166534"
+     id="text75">r(x)</text>
+</svg>

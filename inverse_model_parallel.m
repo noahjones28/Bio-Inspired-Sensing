@@ -13,7 +13,7 @@ function distal_values = inverse_model_parallel(proximal_values)
     % Initialize parallel pool if needed
     if isempty(gcp('nocreate'))
         localCluster = parcluster('Noah12');
-        delete(localluster.Jobs)
+        delete(localCluster.Jobs)
         parpool(localCluster)
     end
     

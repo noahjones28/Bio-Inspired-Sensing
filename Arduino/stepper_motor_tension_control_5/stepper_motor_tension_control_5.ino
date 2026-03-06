@@ -41,6 +41,7 @@ const float CALIBRATION_FACTOR = 130000.0;
 // Control variables
 float targetTension1 = 0, targetTension2 = 0, targetTension3 = 0, targetTension4 = 0, targetTension5 = 0;
 const float TOLERANCE = 0.03;       // Stop when within this range of target
+const float TENDON_TOLERANCE = 0.08;  // NEW
 const float ZERO_TOLERANCE = 0.05;  // Stop when within this range of home
 bool returningToZero = false;       // Flag to track when returning to zero after cancel
 
@@ -108,11 +109,13 @@ void loop() {
 
   unsigned long now = micros();
   for (int i = 0; i < 5; i++) {
-    if (abs(errors[i]) > TOLERANCE && (now - lastStepTime[i]) >= delayForError(errors[i])) {
-      stepMotor1(stepPins[i], dirPins[i], errors[i] < 0);
-      lastStepTime[i] = now;
+      unsigned long interval = (i < 3) ? delayForErrorTendon(errors[i]) : delayForErrorForce(errors[i]);
+      float tol = (i < 3) ? TENDON_TOLERANCE : TOLERANCE;
+      if (abs(errors[i]) > tol && (now - lastStepTime[i]) >= interval) {
+        stepMotor1(stepPins[i], dirPins[i], errors[i] < 0);
+        lastStepTime[i] = now;
+      }
     }
-  }
   
   // Print status for plotting (10Hz update rate)
   static unsigned long lastPrint = 0;
@@ -161,12 +164,13 @@ void setupMotors() {
   initDriver(driver4);
   initDriver(driver5);
 
-  // Fixed microsteps at 256 for all drivers
+  // Fixed 256 microsteps for fine tendon control
   driver1.microsteps(256);
   driver2.microsteps(256);
   driver3.microsteps(256);
-  driver4.microsteps(256);
-  driver5.microsteps(256);
+  // Fixed 128 microsteps for force application
+  driver4.microsteps(128);
+  driver5.microsteps(128);
 
   delay(1000);
   digitalWrite(MOTOR1_EN_PIN, LOW);
@@ -188,15 +192,27 @@ void initDriver(TMC2209Stepper &drv) {
   drv.pwm_autograd(true);
 }
 
-// NEW: Returns minimum microseconds between steps based on error magnitude
-// Large error = short delay = fast stepping, small error = long delay = slow stepping
-unsigned long delayForError(float error) {
+// Motors 4 & 5 — faster response
+unsigned long delayForErrorForce(float error) {
   float absErr = abs(error);
-  if (absErr > 0.75)  return 50;    // ~20,000 steps/sec (fastest)
-  if (absErr > 0.5)  return 400;    // ~2,500 steps/sec
-  if (absErr > 0.2)  return 1000;   // ~1,000 steps/sec
-  if (absErr > 0.1)  return 2500;   // ~400 steps/sec
-  return 5000;                       // ~200 steps/sec (slowest, fine approach)
+  if (absErr > 0.75) return 10;
+  if (absErr > 0.5)  return 400;
+  if (absErr > 0.3)  return 2500;
+  if (absErr > 0.2)  return 5000;
+  if (absErr > 0.1)  return 10000;
+  return 20000;
+}
+
+// Motors 1, 2 & 3 — slower, finer control
+unsigned long delayForErrorTendon(float error) {
+  float absErr = abs(error);
+  if (absErr > 2.0)  return 200;
+  if (absErr > 1.5)  return 400;
+  if (absErr > 0.75) return 4000;
+  if (absErr > 0.55) return 10000;
+  if (absErr > 0.3)  return 15000;
+  if (absErr > 0.1)  return 20000;
+  return 40000;
 }
 
 // NEW: Single-step pulse (no loop, no blocking delay)
