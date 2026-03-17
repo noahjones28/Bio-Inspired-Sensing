@@ -5,7 +5,7 @@ function simulated_validation()
 close all; clc;
 
 %% Parameters
-n_test_forces = 60;
+n_test_forces = 5;
 F_range       = [0.3, 1.5];
 s_range       = [0.02, 0.20];
 theta_range   = [0, 2*pi];
@@ -122,9 +122,9 @@ function plot_validation(sep_ct, k_ct, sep_cu, k_cu, sep_ot, k_ot, sep_ou, k_ou)
     ylabel('cond(J)');
 
     legend([h1 h2 h3 h4], ...
-        {'Cylindrical — training', 'Cylindrical — unseen', ...
-         'Optimized — training',   'Optimized — unseen'}, ...
-        'Location', 'northeast', 'FontSize', 12, 'FontWeight', 'bold');
+        {'Cylindrical — design loads', 'Cylindrical — unseen loads', ...
+         'Optimized — design loads',   'Optimized — unseen loads'}, ...
+        'Location', 'northeast', 'FontSize', 10);
 
     grid on;
     set(gca, 'FontSize', 16, 'GridAlpha', 0.15, 'FontWeight', 'bold');

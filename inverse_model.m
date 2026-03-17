@@ -1,4 +1,4 @@
-function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array)
+function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array, plot_enabled)
     close all;
     %% ABOUT
     % Input: Measured proximal wrench Wm = [Tx,Ty,Tz,Fx,Fy,Fz] (via ATI Mini40 IP65 6-axis
@@ -12,29 +12,28 @@ function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array)
     ub = [1.5, 0.2, 2*pi, 1.5, 0.2, 2*pi]; % Upper bounds for estimation of [F,s,theta]
     x_typical = (lb + ub) / 2;
     n_design_vars = length(ub); % Number of design variables
-    plot_residual = true; % Enable or disable the live residual plot
-    plot_force = true; % Enable or disable the live force-visualization plot
-    n_global_samples = 10; % Number of LHS samples for global exploration 
-    n_start_points = 1;  % Number of top candidate start points to refine (must be less than n_global_samples)
+    n_global_samples = 1; % Number of LHS samples for global exploration 
     iteration_counter = 0; % Initialize plotting variables
     best_values = [];
     iterations = [];
     % SENSING RANGES from ATI spec sheet 
     R = [1, 1, 1, 60, 20, 20];
     weight_vector = 1./R; % Weights for [Tx,Ty,Tz,Fx,Fy,Fz]
+    min_sep = 0.02; % minimum allowable |s1 - s2|
+    if nargin < 3
+        plot_enabled = true; % default: plots on when called normally
+    end
     
-    % Initialize live residual plot
-    if plot_residual
+    if plot_enabled
+        % Initialize live residual plot
         fig = figure('Name', 'Optimization Progress', 'Position', [0, 0, 960, 1080]);
         ax  = axes('Parent', fig);        % explicit axes
         set(ax,'YScale','log');           % force semilog-y
         grid(ax,'on'); box(ax,'on'); hold(ax,'on');
         colors = lines(size(prox_target,1)); % distinct colors for each N
         plot_handles = gobjects(1, size(prox_target,1)); % store a line handle per N
-    end
-
-    % Initialize live force-visualization plot
-    if plot_force  % assuming this variable exists in your scope
+        
+        % Initialize live force-visualization plot
         fig_handle = figure;
         set(fig_handle, 'Name', 'Force Optimization Progress');
     end
@@ -53,60 +52,54 @@ function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array)
 
     %% OPTIMIZATION CONFIG
     function [x_final, f_final] = force_optimization()
-        %% STAGE 1: LATIN HYPERCUBE SAMPLING (GLOBAL EXPLORATION) 
-        % Fixed seed for reproducibility 
         rng(1234);
-        % Generate LHS samples
-        lhs_samples = lhsdesign(n_global_samples, n_design_vars);
-        % Scale to actual bounds
+        lhs_samples = lhsdesign(n_global_samples, n_design_vars, 'Criterion', 'maximin', 'Iterations', 50);
         X_lhs = lb + lhs_samples .* (ub - lb);
-        % Evaluate objective on all samples
-        residuals = zeros(n_global_samples, 1);
-        for i = 1:n_global_samples
-            r = residual_vec(X_lhs(i, :));
-            residuals(i) = sum(r.^2);  % Sum of squared residuals
-        end
-        
-        % Select top K candidates
-        K = n_start_points;
-        [~, sorted_idx] = sort(residuals, 'ascend');
-        top_k_idx = sorted_idx(1:K);
-        start_points = X_lhs(top_k_idx, :);
-        
-
-        %% STAGE 2: MULTISTART NON-LINEAR LEAST SQUARES REFINEMENT
-        % Configure lsqnonlin options
-        lsq_options = optimoptions('lsqnonlin', ...
-            'Algorithm', 'trust-region-reflective', ...
-            'Display', 'off', ...
-            'FunctionTolerance', 1e-12, ...
-            'StepTolerance', 1e-12, ...
-            'OptimalityTolerance', 1e-12, ...
-            'MaxIterations', 100, ...
-            'FiniteDifferenceType', 'forward', ...
-            'TypicalX', x_typical, ...
-            'OutputFcn', @output_function);
-        
-        % Create optimization problem for MultiStart
+    
+        % Create optimization problem
         problem = createOptimProblem('lsqnonlin', ...
             'objective', @residual_vec, ...
-            'x0', start_points(1, :), ...
+            'x0', X_lhs(1,:), ...
             'lb', lb, ...
             'ub', ub, ...
-            'options', lsq_options);
-        
-        % Create custom start points from LHS top-K
-        custom_starts = CustomStartPointSet(start_points);
-        
-        % Configure MultiStart
-        ms = MultiStart('Display', 'iter', ...
-            'UseParallel', false, ...
-            'StartPointsToRun', 'all');
-        
-        % Run MultiStart with custom start points
-        [x_final, f_final] = run(ms, problem, custom_starts);
-        
-        % Ensure force 1 is most distal force
+            'options', optimoptions('lsqnonlin', ...
+                'Algorithm', 'trust-region-reflective', ...
+                'Display', 'off', ...
+                'FunctionTolerance', 1e-8, ...
+                'StepTolerance', 1e-8, ...
+                'OptimalityTolerance', 1e-8, ...
+                'MaxIterations', 50, ...
+                'FiniteDifferenceType', 'forward', ...
+                'TypicalX', x_typical, ...
+                'OutputFcn', @output_function));
+    
+        % Feed all LHS points as custom start points
+        startpts = CustomStartPointSet(X_lhs);
+    
+        % Run MultiStart, keeping all local solutions
+        ms = MultiStart('Display', 'iter', 'UseParallel', false);
+        [~, ~, ~, ~, allmins] = run(ms, problem, startpts);
+    
+        % Extract all solutions and their residuals
+        all_x = arrayfun(@(m) m.X, allmins, 'UniformOutput', false);
+        all_f = arrayfun(@(m) m.Fval, allmins);
+        all_x = vertcat(all_x{:});
+    
+        % Filter by separation constraint
+        separations = abs(all_x(:,2) - all_x(:,5));
+        valid = separations >= min_sep;
+    
+        if any(valid)
+            [f_final, best_idx] = min(all_f(valid));
+            valid_x = all_x(valid, :);
+            x_final = valid_x(best_idx, :);
+        else
+            warning('No solutions meet separation constraint. Returning overall best.');
+            [f_final, best_idx] = min(all_f);
+            x_final = all_x(best_idx, :);
+        end
+    
+        % Ensure force 1 is most distal
         if x_final(2) < x_final(5)
             x_final = [x_final(4:end), x_final(1:3)];
         end
@@ -119,6 +112,7 @@ function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array)
         y = forward_model([x(1:3);x(4:6)], tau_array(1,:));
         % Compare simulated wrench to measured wrench and weight
         r = (weight_vector .* (y - prox_target))';
+
     end
     
 
@@ -142,17 +136,14 @@ function [distal_value, resnorm_final] = inverse_model(prox_target, tau_array)
                 best_values(end+1) = min(best_values(end), f);
             end
 
-            % Update live force-visualization plot if there is a new best
-            if plot_force
+            if plot_enabled
                 if f == best_values(end) && ishandle(fig_handle)
+                    %Update live force-visualization plot if there is a new best
                     update_force_plot(x, fig_handle);
                 end
-            end
-          
-            % Update live residual plot
-            if plot_residual
+                % Update live residual plot
                 update_residual_plot();
-            end 
+            end         
         end
     end
     

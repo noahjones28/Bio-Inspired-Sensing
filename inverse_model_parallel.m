@@ -31,7 +31,7 @@ function distal_values = inverse_model_parallel(proximal_values)
         
         % Submit async job
         n_outputs = 2; % distal_value, resnorm_final
-        futures(i) = parfeval(@inverse_model, n_outputs, torque_force, tau_values);
+        futures(i) = parfeval(@inverse_model, n_outputs, torque_force, tau_values, false);
     end
 
     %% COLLECT RESULTS

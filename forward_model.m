@@ -32,9 +32,9 @@ function [proximal_wrench, internal_wrenches] = forward_model(distal_values, tau
         distal_values = [distal_values, repmat(sigma_default, N, 1)]; % Set default value
     end
 
-    % Set initial guess x0 depending on total number of degrees of freedom
+    % Set initial guess W0 depending on total number of degrees of freedom
     ndof = S.ndof;
-    x0 = zeros(ndof,1);
+    W0 = zeros(ndof,1);
 
     % Sign convention:
     %   tau_array < 0 → tendon pulling (tension)
@@ -57,7 +57,7 @@ function [proximal_wrench, internal_wrenches] = forward_model(distal_values, tau
     action = [tau_array';initial_joint]; % append tendon actuation
 
     % Statics simulation
-    [q,u,lambda] = S.statics(x0,action,'plotResult',false,'Display','off');
+    [q,u,lambda] = S.statics(W0,action,'plotResult',false,'Display','off');
   
 
     %% PROXIMAL WRENCH
