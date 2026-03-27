@@ -1,4 +1,4 @@
-# Bio-Inspired Backbone Geometry for Multi-Point 3D Force Estimation in Continuum Robots
+# Bioinspired Backbone Geometry for Continuum Robot Force Estimation
 
 **Noah Jones · UC San Diego, Morimoto Lab · MS Thesis 2025**
 
@@ -119,7 +119,7 @@ my_robots/                   # Saved SoRoSim robot configurations
 
 ```bibtex
 @mastersthesis{jones2025whisker,
-  title  = {Bio-Inspired Backbone Geometry for Multi-Point 3D Force Estimation in Continuum Robots},
+  title  = {Bioinspired Backbone Geometry for Continuum Robot Force Estimation},
   author = {Jones, Noah},
   school = {University of California San Diego},
   year   = {2025}
