@@ -1,6 +1,6 @@
 # Bioinspired Backbone Geometry for Continuum Robot Force Estimation
 
-**Noah Jones · UC San Diego, Morimoto Lab · MS Thesis 2025**
+**Noah Jones**
 
 ---
 
@@ -111,7 +111,6 @@ my_robots/                   # Saved SoRoSim robot configurations
   - Optimization Toolbox (`fmincon`, `lsqnonlin`)
   - Statistics and Machine Learning Toolbox (Latin Hypercube Sampling)
 - Arduino IDE (for hardware control)
-- Bambu X1 Carbon + PC filament (for fabrication)
 
 ---
 
@@ -128,4 +127,4 @@ my_robots/                   # Saved SoRoSim robot configurations
 
 ---
 
-**Noah Jones** · noahloicjones@gmail.com · [Morimoto Lab, UC San Diego](https://sites.google.com/view/morimotolab)
+**Noah Jones** · noah@familiajones.org
