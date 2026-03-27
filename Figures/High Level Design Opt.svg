@@ -23,11 +23,11 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="0.59846278"
-     inkscape:cx="906.48912"
-     inkscape:cy="625.76991"
+     inkscape:cx="968.31419"
+     inkscape:cy="560.60295"
      inkscape:window-width="1920"
      inkscape:window-height="1009"
-     inkscape:window-x="1912"
+     inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
      inkscape:current-layer="g30" /><defs
@@ -264,9 +264,9 @@
        fill="#333333"
        id="text14"
        style="font-size:22px">Evaluation Loads</text><rect
-       x="28"
+       x="7"
        y="96"
-       width="446"
+       width="488"
        height="40"
        rx="6"
        fill="#dbeafe"
@@ -282,7 +282,9 @@
        id="text15"
        style="font-size:22px">F<tspan
    style="font-size:65%;baseline-shift:sub"
-   id="tspan1">eval</tspan>=[F₁,s₁,θ₁,F₂,s₂,θ₂] τ=[τ₁,τ₂,τ₃]</text><text
+   id="tspan1">eval</tspan>=[F₁,s₁,θ₁,F₂,s₂,θ₂] τ<tspan
+   style="font-size:65%;baseline-shift:sub"
+   id="tspan3">eval</tspan>=[τ₁,τ₂,τ₃]</text><text
        x="251"
        y="154"
        text-anchor="middle"
@@ -396,16 +398,16 @@
        id="text25"
        style="font-size:19px">subject to safety &amp; bounds</text><!-- Formulation --><rect
        x="16"
-       y="116"
+       y="114"
        width="548"
-       height="42"
+       height="48"
        rx="6"
        fill="#dbeafe"
        stroke="#2563eb"
        stroke-width="1"
        id="rect25" /><text
        x="290"
-       y="144"
+       y="143.75244"
        text-anchor="middle"
        class="mono-text"
        font-size="19"
@@ -435,7 +437,9 @@
        font-size="18px"
        fill="#475569"
        id="text28"
-       style="font-size:19px;fill:#333333;fill-opacity:1">LHS sampling (N=600) → evaluate Cost &amp; Safety → best seed</text><!-- Stage 2 --><text
+       style="font-size:19px;fill:#333333;fill-opacity:1">LHS sampling (N=600) → evaluate Cost &amp; Safety → best seed x<tspan
+   style="font-size:65%;baseline-shift:sub"
+   id="tspan6">0</tspan></text><!-- Stage 2 --><text
        x="290"
        y="248"
        text-anchor="middle"

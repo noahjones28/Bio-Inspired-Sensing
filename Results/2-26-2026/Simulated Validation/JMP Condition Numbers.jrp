@@ -243,39 +243,32 @@
 		)
 	)) << Run Formulas;
 	table1 << Graph Builder(
-		Size( 600, 443 ),
+		Size( 749, 489 ),
 		Show Control Panel( 0 ),
 		Legend Position( "Bottom" ),
-		Variables( Y( :Condition Number ), Overlay( :Type ), Color( :Design ) ),
-		Elements( Points( Y, Legend( 19 ) ) ),
+		Y Group Title Orientation( "Horizontal" ),
+		Y Group Level Orientation( "Horizontal" ),
+		Title Fill Color( "Medium Light Gray" ),
+		Title Frame Color( "Medium Light Gray" ),
+		Level Fill Color( {217, 217, 217} ),
+		Level Frame Color( "Medium Light Gray" ),
+		Level Spacing Color( "Medium Light Gray" ),
+		Variables( X( :Condition Number ), Group Y( :Type ), Overlay( :Design ) ),
+		Elements( Histogram( X, Legend( 22 ) ) ),
 		SendToReport(
 			Dispatch( {}, "Condition Number", ScaleBox,
-				{Scale( "Log" ), Format( "Best", 6 ), Min( 42.7335754210932 ),
-				Max( 42733575421.0932 ), Inc( 1 ), Minor Ticks( 0 ),
-				Label Row( Show Major Grid( 1 ) )}
+				{Scale( "Log" ), Format( "Best", 5 ), Min( 21.9653120376429 ),
+				Max( 10153064573.9028 ), Inc( 1 ), Minor Ticks( 1 ),
+				Label Row( {Show Minor Labels( 0 ), Show Minor Ticks( 0 )} )}
 			),
 			Dispatch( {}, "400", ScaleBox,
 				{Legend Model(
-					19,
-					Properties(
-						0,
-						{Line Color( 16 ), Marker( "Filled Up Triangle" )},
-						Item ID( "Cylindrical", 1 )
-					),
+					22,
+					Properties( 0, {Fill Color( 16 )}, Item ID( "Cylindrical", 1 ) ),
 					Properties(
 						1,
-						{Line Color( -50903 ), Marker( "Filled Up Triangle" )},
+						{Fill Color( -50903 )},
 						Item ID( "Optimized", 1 )
-					),
-					Properties(
-						2,
-						{Marker( "FilledCircle" ), Marker Size( 4 )},
-						Item ID( "Design Loads", 1 )
-					),
-					Properties(
-						3,
-						{Marker( "Triangle" ), Marker Size( 4 )},
-						Item ID( "Unseen Loads", 1 )
 					)
 				)}
 			),
