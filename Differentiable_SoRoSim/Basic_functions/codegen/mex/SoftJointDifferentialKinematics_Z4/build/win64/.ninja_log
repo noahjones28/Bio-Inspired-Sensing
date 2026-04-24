@@ -1,0 +1,16 @@
+# ninja log v5
+0	143	7709706312446032	build/win64/rt_nonfinite.o	9eb0861a8efa6204
+8	203	7709706313067304	build/win64/SoftJointDifferentialKinematics_Z4_data.o	9736037e50433380
+25	216	7709706313145863	build/win64/SoftJointDifferentialKinematics_Z4_terminate.o	b6be93bbad8f9a64
+15	222	7709706313287093	build/win64/eye.o	8723292c9a15cc3f
+58	252	7709706313620749	build/win64/dinamico_adj.o	cb23f524cc25d063
+64	283	7709706313865802	build/win64/_coder_SoftJointDifferentialKinematics_Z4_mex.o	b03fc44ec1b56cfb
+42	285	7709706313933716	build/win64/mtimes.o	65975e267b9e9fa7
+89	288	7709706313925233	build/win64/c_mexapi_version.o	295c1a2071f06b1b
+72	291	7709706313986405	build/win64/_coder_SoftJointDifferentialKinematics_Z4_info.o	6fed6ac12bc0c57b
+98	295	7709706314058601	build/win64/SoftJointDifferentialKinematics_Z4_initialize.o	a87c7e7ab811a8a9
+50	304	7709706314137513	build/win64/_coder_SoftJointDifferentialKinematics_Z4_api.o	ef9bc1a60da8da9e
+106	309	7709706314208789	build/win64/norm.o	334e4cf368bfeb19
+33	319	7709706314310028	build/win64/eml_mtimes_helper.o	361838901fb3d541
+81	993	7709706320994362	build/win64/SoftJointDifferentialKinematics_Z4.o	be97debec400a57e
+994	1104	7709706322106090	SoftJointDifferentialKinematics_Z4_mex.mexw64	9415cdcff2c2ace0

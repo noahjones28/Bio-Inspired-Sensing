@@ -1,0 +1,11 @@
+# ninja log v5
+0	102	7709706081952923	build/win64/rt_nonfinite.o	9323f58066bcf5ae
+24	137	7709706082287602	build/win64/c_mexapi_version.o	3edf1d0e92475e39
+5	140	7709706082287602	build/win64/variable_expmap_g_data.o	a9d72452a48daba2
+14	143	7709706082354118	build/win64/variable_expmap_g_initialize.o	5f623eb49fa85e6b
+34	171	7709706082647015	build/win64/_coder_variable_expmap_g_mex.o	8e2fb964e155ef70
+64	186	7709706082789023	build/win64/_coder_variable_expmap_g_info.o	6351b8079c5e13d9
+50	188	7709706082806554	build/win64/variable_expmap_g_terminate.o	555c0d76dab04dad
+41	190	7709706082806554	build/win64/_coder_variable_expmap_g_api.o	e3f33a2c833dfddf
+57	203	7709706082983659	build/win64/variable_expmap_g.o	ea060ceedb518307
+205	286	7709706083751272	variable_expmap_g_mex.mexw64	643ad100a222d435
